@@ -72,3 +72,69 @@
 .raga-actions a{font-size:10px;color:var(--green)}
 @media(max-width:850px){.raga-grid{grid-template-columns:1fr}.raga-card p{min-height:0}}
 dialog{max-height:calc(100vh - 32px);overflow-y:auto}
+
+/* Short listening and tala games live beside the regular learning path. */
+.challenge-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:23px 0 18px;padding:12px 17px;background:#f0f2e9;border:1px solid var(--line);border-radius:5px;color:#697a62;font-size:11px}
+.challenge-toolbar strong{color:var(--green);font-weight:600}
+.challenge-toolbar button{margin-left:8px;color:#50714d;text-decoration:underline;font-size:10px}
+.challenge-toolbar label{display:flex;align-items:center;gap:10px;white-space:nowrap}
+.challenge-toolbar select{width:auto;min-width:108px;padding:8px;font-size:11px}
+.challenge-layout{display:grid;grid-template-columns:minmax(250px,310px) minmax(0,1fr);gap:20px;align-items:start}
+.challenge-list{display:grid;gap:7px}
+.challenge-card{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:11px;align-items:start;text-align:left;width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:5px;background:#faf9f4;color:var(--ink)}
+.challenge-card:hover,.challenge-card:focus-visible{border-color:#92a887;background:#f4f7ef}
+.challenge-card.selected{border-color:#75936e;background:#edf3e8;box-shadow:inset 3px 0 #75936e}
+.challenge-card-number{font:17px var(--serif);color:#8ca17e}
+.challenge-card small{display:block;font:8px var(--mono);letter-spacing:.7px;color:#718368;margin-bottom:3px}
+.challenge-card strong{display:block;font:19px var(--serif);font-weight:400;line-height:1.1}
+.challenge-card em{display:none}
+.challenge-card-score{font:9px var(--mono);color:#587851;white-space:nowrap}
+.challenge-stage{min-height:435px;padding:24px 28px;border:1px solid var(--line);border-radius:5px;background:var(--panel)}
+.challenge-stage h2{font:33px/1.1 var(--serif);margin:9px 0 6px}
+.challenge-stage>p:not(.challenge-status){color:#71816b;font-size:11px;line-height:1.55}
+.challenge-feedback{margin:17px 0 0;padding:14px 17px;background:#f2eee4;border-left:3px solid #b59972;border-radius:3px;color:#755b42}
+.challenge-feedback.good{background:#e9f0e3;border-left-color:#789a6c;color:#55754c}
+.challenge-feedback strong{display:block;font:21px var(--serif)}
+.challenge-feedback p{font-size:11px;line-height:1.5;margin-top:3px}
+.challenge-display{display:flex;align-items:center;justify-content:center;min-height:165px;margin:18px 0 14px;border:1px dashed #d6decf;border-radius:5px;background:#fafbf6;text-align:center;padding:12px}
+.challenge-placeholder>span{display:block;font:42px var(--serif);color:#a2b396}
+.challenge-placeholder p{max-width:280px;color:#83917d;font-size:12px;line-height:1.5;margin:7px auto 0}
+.challenge-mystery{font:34px/1.2 var(--serif);color:var(--green)}
+.challenge-mystery span{color:#9bab91;padding:0 12px}
+.challenge-mystery small{display:block;font:10px var(--sans);color:#889681;margin-top:8px}
+.challenge-beat{font:68px/1 var(--serif);color:var(--green)}
+.challenge-beat small{display:block;font:12px var(--sans);color:#82977a;margin-top:5px}
+.challenge-beat.ghost{color:#aab5a4}
+.challenge-phrase{display:flex;gap:9px;align-items:stretch;justify-content:center;flex-wrap:wrap}
+.challenge-phrase span{min-width:58px;padding:12px 7px;border:1px solid #d7e0ce;border-radius:4px;font:22px var(--serif);color:#6d8562}
+.challenge-phrase span.current{background:#e2ecd8;border-color:#88a779;color:#3f6540}
+.challenge-phrase small{display:block;font:8px var(--mono);color:#71896e;margin-bottom:3px}
+.challenge-options{display:flex;flex-wrap:wrap;gap:8px;margin:9px 0}
+.challenge-options button{min-width:67px;padding:9px 13px;border:1px solid #cbd9c2;border-radius:4px;background:#fafbf5;color:#4f704b;font:19px var(--serif)}
+.challenge-options button:hover,.challenge-options button:focus-visible{background:#e2edda}
+.challenge-controls{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-top:15px}
+.challenge-controls .primary-button,.challenge-controls .secondary-button{height:39px;font-size:11px;min-width:0}
+.challenge-tap{padding:14px 20px;border-radius:6px;border:1px solid #64865c;background:#dae8d1;color:#345d34;font-size:14px;font-weight:600;touch-action:manipulation;user-select:none}
+.challenge-tap:active{transform:scale(.97);background:#bdd5b5}
+.challenge-tap:disabled{opacity:.55;cursor:default}
+.challenge-status{min-height:18px;margin-top:13px;font-size:11px;color:#788872}
+@media(max-width:1100px){.challenge-layout{grid-template-columns:230px minmax(0,1fr)}.challenge-stage{padding:20px}}
+@media(max-width:850px){.challenge-layout{grid-template-columns:1fr}.challenge-list{grid-template-columns:repeat(2,minmax(0,1fr))}.challenge-card{grid-template-columns:25px minmax(0,1fr) auto}.challenge-stage{min-height:390px}}
+@media(max-width:580px){
+  #challenges-view .progress-intro{font-size:35px;line-height:1.08;margin-top:8px}
+  #challenges-view .page-description{max-width:100%;line-height:1.5}
+  .challenge-toolbar{align-items:flex-start;flex-direction:column;margin:15px 0 12px;padding:10px 12px;gap:8px}
+  .challenge-layout{display:flex;flex-direction:column;gap:10px}
+  .challenge-list{display:flex;overflow-x:auto;max-width:100%;gap:7px;padding-bottom:5px;scroll-snap-type:x proximity}
+  .challenge-card{flex:0 0 158px;grid-template-columns:20px minmax(0,1fr);gap:5px;padding:9px 10px;min-height:62px;scroll-snap-align:start}
+  .challenge-card-number{font-size:15px}
+  .challenge-card strong{font-size:17px}
+  .challenge-card small{font-size:7px}
+  .challenge-card{position:relative;padding-right:17px}
+  .challenge-card-score{display:block;position:absolute;top:5px;right:5px;font-size:8px}
+  .challenge-stage{width:100%;min-height:360px;padding:18px}
+  .challenge-stage h2{font-size:29px}
+  .challenge-display{min-height:125px;margin:13px 0}
+  .challenge-mystery{font-size:28px}
+  .challenge-phrase span{min-width:47px;font-size:19px}
+}

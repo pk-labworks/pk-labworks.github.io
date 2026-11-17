@@ -1,4 +1,5 @@
 import {RAGA_LIST,RAGAS,DEFAULT_RAGA,PITCH_POSITION_LABELS,midiHz,swaraHz as swaraHzFor,noteName,nearestSwara as nearestSwaraFor,centsBetween,detectPitch,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261116-13';
+import {createChallenges} from './challenges.js?v=20261117-1';
 const $=id=>document.getElementById(id);
 const sound=new SoundEngine();
 const defaults={base:56,raga:DEFAULT_RAGA,level:'beginner',duration:'3',response:3};
@@ -8,7 +9,7 @@ let SWARAS=RAGAS[settings.raga].notes;
 const swaraHz=(base,index)=>swaraHzFor(base,index,SWARAS);
 const nearestSwara=(hz,base)=>nearestSwaraFor(hz,base,SWARAS);
 const scorePitch=(samples,targets,secondsPerNote,base,tolerance)=>scorePitchFor(samples,targets,secondsPerNote,base,tolerance,SWARAS);
-let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,activeTarget=0,playingIndex=null,totalSeconds=3,previewing=false;
+let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,activeTarget=0,playingIndex=null,totalSeconds=3,previewing=false,challenges=null;
 const titles={1:['THE FOUNDATIONS','One swara at a time.','Listen closely. Sing freely. Let your ear lead the way.'],2:['A STEP FORWARD','One note leads to another.','Hold two sounds in your mind, then find each swara.'],3:['MUSICAL MEMORY','Let three notes become one.','Listen for the shape of a phrase, then respond in order.']};
 const isIdentification=()=>mode==='name';
 const isMemory=()=>mode==='memory';
@@ -51,6 +52,7 @@ function selectRaga(id){
   updateConfig();renderExercise();save();
   if(view==='library')renderLibrary();
   if(view==='progress')renderProgress();
+  challenges?.reset();
 }
 function chooseExercise(){
   for(let attempt=0;attempt<12;attempt++){
@@ -271,7 +273,7 @@ function drawChart(){
     c.fillStyle='#456e4b';c.beginPath();c.arc(right-9,y,5,0,Math.PI*2);c.fill();
   }
 }
-function showView(next){if(view!==next){if(busy())cancelExercise();sound.stopNotes();}view=next;document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==`${next}-view`);document.querySelectorAll('[data-view]').forEach(el=>{el.classList.toggle('active',el.dataset.view===next);el.setAttribute('aria-current',el.dataset.view===next?'page':'false');});if(next==='progress')renderProgress();if(next==='library')renderLibrary();if(next==='practice')requestAnimationFrame(drawChart);}
+function showView(next){if(view!==next){if(busy())cancelExercise();if(view==='challenges')challenges?.reset();sound.stopNotes();if(next==='challenges'&&drone){sound.stopDrone();drone=false;updateDroneButton();}}view=next;document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==`${next}-view`);document.querySelectorAll('[data-view]').forEach(el=>{el.classList.toggle('active',el.dataset.view===next);el.setAttribute('aria-current',el.dataset.view===next?'page':'false');});if(next==='progress')renderProgress();if(next==='library')renderLibrary();if(next==='practice')requestAnimationFrame(drawChart);}
 function renderProgress(){
   const ragaHistory=history.filter(entry=>(entry.raga||DEFAULT_RAGA)===settings.raga&&entry.notes.every(note=>note.index<SWARAS.length));
   const count=ragaHistory.length,avg=count?Math.round(ragaHistory.reduce((s,h)=>s+h.accuracy,0)/count):0;const dates=new Set(ragaHistory.map(h=>new Date(h.time).toDateString()));
@@ -298,7 +300,7 @@ function renderLibrary(){
   $('library-view').querySelectorAll('[data-library-note]').forEach(b=>b.onclick=async()=>{await sound.unlock();sound.stopNotes();sound.tone(swaraHz(settings.base,Number(b.dataset.libraryNote)),referenceDuration());});
 }
 function syncPath(){document.querySelectorAll('[data-step]').forEach(b=>b.classList.toggle('active',Number(b.dataset.step)===step));document.querySelectorAll('[data-mode]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.mode===mode));b.textContent=b.dataset.mode==='memory'?'Sing from memory':`Learn to ${b.dataset.mode==='sing'?'sing':'name'} the ${step===1?'swara':'swaras'}`;});}
-function openSettings(){if(busy())return;updateConfig();$('settings-dialog').showModal();}
+function openSettings(){if(busy())return;if(view==='challenges')challenges?.reset();updateConfig();$('settings-dialog').showModal();}
 for(const id of ['settings-open','shruthi-open','raga-open'])$(id).onclick=openSettings;
 $('settings-dialog').addEventListener('close',()=>{if($('settings-dialog').returnValue!=='save')return;settings.base=Number($('shruthi-select').value);settings.level=$('level-select').value;settings.duration=$('duration-select').value;settings.response=Number($('response-select').value);if(drone)sound.toggleDrone(settings.base,true);selectRaga($('raga-select').value);toast('Your practice settings are saved.');});
 $('help-open').onclick=()=>$('help-dialog').showModal();
@@ -311,6 +313,7 @@ document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{cancelExercis
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>showView(b.dataset.view));
 document.querySelector('.brand').onclick=e=>{e.preventDefault();showView('practice');};
 new ResizeObserver(()=>drawChart()).observe($('pitch-chart'));
-document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();sound.stopDrone();drone=false;updateDroneButton();}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();challenges?.reset();sound.stopDrone();drone=false;updateDroneButton();}});
 window.addEventListener('pagehide',()=>sound.shutdown());
+challenges=createChallenges({sound,getSettings:()=>settings,getNotes:()=>SWARAS,onSettings:openSettings});
 updateConfig();syncPath();renderExercise();
