@@ -7,8 +7,8 @@
   <meta name="description" content="Practice Carnatic swaras, develop your ear, and see your singing in real time. A personal music practice studio.">
   <title>Swara Studio — Listen. Sing. Find your pitch.</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20261117-1">
-  <script type="module" src="app.js?v=20261117-1"></script>
+  <link rel="stylesheet" href="styles.css?v=20261121-1">
+  <script type="module" src="app.js?v=20261121-1"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to practice</a>
@@ -20,6 +20,7 @@
       <button class="nav-item" data-view="progress"><span class="nav-icon">↗</span> My progress</button>
       <button class="nav-item" data-view="library"><span class="nav-icon">♮</span> Swara library</button>
       <button class="nav-item" data-view="challenges"><span class="nav-icon">✦</span> Playful challenges</button>
+      <button class="nav-item" data-view="tools"><span class="nav-icon">♬</span> Tools</button>
     </nav>
     <div class="path-heading"><span class="side-label">THE LEARNING PATH</span><span class="tiny-label">01—03</span></div>
     <nav class="learning-path" aria-label="Training steps">
@@ -35,7 +36,7 @@
       <section id="practice-view" class="view">
         <div class="page-heading"><div><p class="eyebrow" id="step-eyebrow">STEP 01 / THE FOUNDATIONS</p><h1 id="page-title">One swara at a time.</h1><p class="page-description" id="page-description">Listen closely. Sing freely. Let your ear lead the way.</p></div><div class="daily-goal"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="20"/><circle id="goal-ring" cx="24" cy="24" r="20"/></svg><span><strong id="today-count">0 <span>/ 8</span></strong><small>today’s practice</small></span></div></div>
         <div class="session-bar"><button class="session-setting" id="shruthi-open"><span class="label">BASE SHRUTHI</span><span><strong id="shruthi-label">G♯3</strong><small id="shruthi-hz">207.65 Hz</small><span class="chevron">⌄</span></span></button><button class="session-setting raga-setting" id="raga-open"><span class="label">RAGA</span><span><strong id="raga-label">Mayamalavagowla</strong><small id="raga-type">15th melakarta</small><span class="chevron">⌄</span></span></button><button id="drone-toggle" class="drone-button" aria-pressed="false"><span class="drone-symbol" aria-hidden="true">≋</span><span>Shruthi drone<small id="drone-status">Off</small></span><span class="switch" aria-hidden="true"></span></button></div>
-        <div id="exercise-tabs" class="exercise-tabs" role="tablist" aria-label="Practice type"><button role="tab" aria-selected="true" data-mode="sing">Learn to sing the swara</button><button role="tab" aria-selected="false" data-mode="name">Learn to name the swara</button><button role="tab" aria-selected="false" data-mode="memory">Sing from memory</button></div>
+        <div id="exercise-tabs" class="exercise-tabs" role="tablist" aria-label="Practice type"><button role="tab" aria-selected="true" data-mode="sing">Sing the swara</button><button role="tab" aria-selected="false" data-mode="name">Name the swara</button><button role="tab" aria-selected="false" data-mode="memory">Sing from memory</button></div>
         <div class="practice-layout">
           <section class="exercise-panel" id="exercise-panel" aria-labelledby="exercise-title">
             <div class="exercise-header"><span class="label" id="exercise-count">EXERCISE 01</span><span class="level-tag" id="level-tag">Beginner</span></div>
@@ -46,6 +47,7 @@
             <div class="phase-strip"><span class="phase-dot" id="phase-dot"></span><span id="phase-label">A quiet breath, then begin.</span><span class="phase-time" id="phase-time"></span></div>
             <div class="exercise-actions"><button id="preview-note" class="secondary-button" aria-label="Play the swara"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 8v4h3l4 3V5L6 8H3zM13 6c3 2 3 6 0 8M15 3c5 4 5 10 0 14"/></svg><span>Play the swara</span></button><button id="begin" class="primary-button"><span>Sing the swara</span><span aria-hidden="true">→</span></button></div>
             <div id="answer-options" class="answer-options" hidden aria-label="Name the swaras in order"></div>
+            <div id="answer-controls" class="answer-controls" hidden><button id="answer-undo" class="secondary-button" type="button" disabled>Undo last</button><button id="answer-clear" class="secondary-button" type="button" disabled>Clear all</button><button id="answer-submit" class="primary-button" type="button" disabled>Check answer <span aria-hidden="true">→</span></button></div>
             <div class="panel-foot"><span id="duration-caption">3s per reference swara · 3s singing</span></div>
           </section>
           <aside class="pitch-panel" aria-labelledby="pitch-title"><div class="pitch-header"><div><h2 id="pitch-title">Your pitch</h2><p id="pitch-subtitle">Twelve pitch positions; your raga notes are highlighted.</p></div></div><div class="chart-target"><span class="label">TARGET NOTE</span><strong id="chart-note">Sa · G♯3</strong></div><div class="chart-legend"><span><i class="legend-reference"></i> Target</span><span><i class="legend-voice"></i> Your voice</span><span><i class="legend-playing"></i> Playing</span></div><div class="chart-wrap"><canvas id="pitch-chart" aria-label="Pitch over time on twelve Carnatic pitch positions, with Upper Sa at the octave edge. Target and detected pitches are shown." role="img"></canvas><div class="chart-empty" id="chart-empty"><span aria-hidden="true">∿</span><p>Your voice will appear here.<small>Allow microphone access when you sing.</small></p></div></div><div class="pitch-readings"><div><span class="label">DETECTED SWARA</span><strong id="detected-note">—</strong></div><div><span class="label">YOUR PITCH</span><strong id="detected-hz">— <small>Hz</small></strong></div><div><span class="label">DEVIATION</span><strong id="detected-cents">— <small>cents</small></strong></div><div class="pitch-status"><span id="live-status">Ready when you are</span><i id="signal-dot"></i></div></div></aside>
@@ -55,6 +57,7 @@
       <section id="progress-view" class="view" hidden></section>
       <section id="library-view" class="view" hidden></section>
       <section id="challenges-view" class="view" hidden></section>
+      <section id="tools-view" class="view" hidden></section>
     </main>
   </div>
   <dialog id="settings-dialog"><form method="dialog"><div class="dialog-heading"><div><p class="eyebrow">MAKE IT YOURS</p><h2>Practice settings</h2></div><button class="icon-button dialog-close" aria-label="Close settings" value="cancel">✕</button></div><p class="dialog-description">A comfortable starting note makes room for better listening.</p><label for="shruthi-select">Base shruthi <span>Your Sa</span></label><select id="shruthi-select"><option value="54">F♯3</option><option value="55">G3</option><option value="56" selected>G♯3</option><option value="57">A3</option><option value="58">A♯3</option><option value="59">B3</option><option value="60">C4</option><option value="61">C♯4</option></select><label for="raga-select">Raga</label><select id="raga-select"><option value="mayamalavagowla">Mayamalavagowla</option><option value="kalyani">Kalyani</option><option value="sankarabharanam">Sankarabharanam</option><option value="harikambhoji">Harikambhoji</option><option value="kharaharapriya">Kharaharapriya</option><option value="mohanam">Mohanam</option></select><p class="field-note">Practice notes and naming choices follow the selected raga. Explore their scales in the Swara library.</p><label for="level-select">Difficulty</label><select id="level-select"><option value="beginner">Beginner · ±35 cents</option><option value="intermediate">Intermediate · ±25 cents</option><option value="advanced">Advanced · ±15 cents</option></select><div class="form-columns"><div><label for="duration-select">Reference swara playback</label><select id="duration-select"><option value="3" selected>3 seconds per swara</option><option value="5">5 seconds per swara</option><option value="10">10 seconds per swara</option></select></div><div><label for="response-select">Time to sing</label><select id="response-select"><option value="3" selected>3 seconds per note</option><option value="5">5 seconds per note</option><option value="10">10 seconds per note</option></select></div></div><p class="field-note">Reference notes use piano-like tones at equal-tempered pitches relative to your selected Sa.</p><button id="settings-save" value="save" class="primary-button full-width">Save settings <span>→</span></button></form></dialog>

@@ -1,5 +1,6 @@
 import {RAGA_LIST,RAGAS,DEFAULT_RAGA,PITCH_POSITION_LABELS,midiHz,swaraHz as swaraHzFor,noteName,nearestSwara as nearestSwaraFor,centsBetween,detectPitch,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261116-13';
 import {createChallenges} from './challenges.js?v=20261117-1';
+import {createTools} from './tools.js?v=20261121-1';
 const $=id=>document.getElementById(id);
 const sound=new SoundEngine();
 const defaults={base:56,raga:DEFAULT_RAGA,level:'beginner',duration:'3',response:3};
@@ -9,12 +10,12 @@ let SWARAS=RAGAS[settings.raga].notes;
 const swaraHz=(base,index)=>swaraHzFor(base,index,SWARAS);
 const nearestSwara=(hz,base)=>nearestSwaraFor(hz,base,SWARAS);
 const scorePitch=(samples,targets,secondsPerNote,base,tolerance)=>scorePitchFor(samples,targets,secondsPerNote,base,tolerance,SWARAS);
-let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,activeTarget=0,playingIndex=null,totalSeconds=3,previewing=false,challenges=null;
+let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,activeTarget=0,playingIndex=null,totalSeconds=3,previewing=false,challenges=null,tools=null;
 const titles={1:['THE FOUNDATIONS','One swara at a time.','Listen closely. Sing freely. Let your ear lead the way.'],2:['A STEP FORWARD','One note leads to another.','Hold two sounds in your mind, then find each swara.'],3:['MUSICAL MEMORY','Let three notes become one.','Listen for the shape of a phrase, then respond in order.']};
 const isIdentification=()=>mode==='name';
 const isMemory=()=>mode==='memory';
 const idlePrompt=()=>isIdentification()?`Listen to anchor Sa, then name ${targets.length===1?'the swara':'the swaras in order'}.`:isMemory()?`Sing ${targets.length===1?'the swara':'the swaras in order'} from memory.`:`Play the ${targets.length===1?'swara':'swaras'}, then sing.`;
-const answerPrompt=()=>targets.length===1?'Name the swara you heard.':`Name swara ${answers.length+1} of ${targets.length}.`;
+const answerPrompt=()=>answers.length===targets.length?'Ready to check your answer.':targets.length===1?'Name the swara you heard.':`Name swara ${answers.length+1} of ${targets.length}.`;
 const busy=()=>!['idle','result'].includes(phase);
 const tolerance=()=>({beginner:35,intermediate:25,advanced:15})[settings.level];
 const noteReadout=index=>`${SWARAS[index].variant} · ${noteName(settings.base+SWARAS[index].offset)} · ${swaraHz(settings.base,index).toFixed(2)} Hz`;
@@ -36,6 +37,7 @@ function setPhase(next,label,time=''){
   $('preview-note').querySelector('span').textContent=playLabel;
   $('preview-note').setAttribute('aria-label',next==='reference'?'Stop playing the swaras':playLabel);
   $('preview-note').hidden=isMemory()||isIdentification()&&next!=='answer'&&next!=='reference';
+  $('answer-controls').hidden=next!=='answer';
   for(const id of ['settings-open','shruthi-open','raga-open'])$(id).disabled=busy();
   $('preview-note').disabled=busy()&&phase!=='reference'&&phase!=='answer';
 }
@@ -53,6 +55,7 @@ function selectRaga(id){
   if(view==='library')renderLibrary();
   if(view==='progress')renderProgress();
   challenges?.reset();
+  tools?.reset();
 }
 function chooseExercise(){
   for(let attempt=0;attempt<12;attempt++){
@@ -82,7 +85,7 @@ function renderExercise(newSequence=true){
   $('target-name').textContent=concealed?'?':SWARAS[reference[0]].name;
   $('note-kicker').textContent=concealed?'LISTEN CLOSELY':isMemory()?'FROM MEMORY':'YOUR REFERENCE';
   $('target-western').textContent=concealed?'Trust your listening.':isMemory()?'No reference will play.':noteReadout(reference[0]);
-  $('sequence').hidden=count===1;
+  $('sequence').hidden=count===1&&!concealed;
   $('sequence').innerHTML=targets.map(i=>`<span>${concealed?'?':SWARAS[i].name}</span>`).join('');
   $('duration-caption').textContent=concealed?`Anchor Sa + ${referenceDuration()}s per swara · name in order`:isMemory()?`${settings.response}s${count>1?' / note':''} singing · no reference sound`:`${referenceDuration()}s per reference swara · ${settings.response}s${count>1?' / note':''} singing`;
   $('exercise-panel').classList.remove('show-result');$('answer-options').hidden=true;$('feedback').hidden=true;answers=[];setChartNote(reference[0],concealed);setPhase('idle',idlePrompt());resetReadings();drawChart();
@@ -147,13 +150,13 @@ async function preview(){
 async function begin(){
   if(previewing){sound.stopNotes();controller?.abort();previewing=false;setPhase('idle','Ready to sing.');}
   else if(busy()){cancelExercise();return;}
-  controller=new AbortController();const signal=controller.signal;samples=[];live=null;lastSample=0;previewing=false;answers=[];$('exercise-panel').classList.remove('show-result');$('feedback').hidden=true;$('answer-options').hidden=true;resetReadings();
+  controller=new AbortController();const signal=controller.signal;samples=[];live=null;lastSample=0;previewing=false;answers=[];updateAnswerEntry();$('exercise-panel').classList.remove('show-result');$('feedback').hidden=true;$('answer-options').hidden=true;resetReadings();
   try{
     setPhase('preparing',isIdentification()?'Preparing the reference.':'Waiting for microphone access…');await sound.unlock();throwIfAborted(signal);
     if(drone){sound.stopDrone();drone=false;updateDroneButton();}
     if(!isIdentification()){await sound.microphone(signal);if(signal.aborted)return;}
     $('chart-empty').hidden=isIdentification();drawChart();
-    if(isIdentification()){await playReferences(reference,signal,true);setPhase('answer',answerPrompt());$('answer-options').hidden=false;$('answer-options').innerHTML=SWARAS.map((s,i)=>`<button data-answer="${i}">${s.name}</button>`).join('');return;}
+    if(isIdentification()){await playReferences(reference,signal,true);setPhase('answer',answerPrompt());$('answer-options').hidden=false;$('answer-options').innerHTML=SWARAS.map((s,i)=>`<button data-answer="${i}">${s.name}</button>`).join('');updateAnswerEntry();return;}
     setPhase('recording',`Sing ${SWARAS[targets[0]].name}.`);$('note-kicker').textContent=isMemory()?'SING FROM MEMORY':'YOUR TURN TO SING';sound.startRecording();recordStart=performance.now();activeTarget=0;$('chart-empty').hidden=true;
     captureFrame();await wait(totalSeconds*1000,signal);cancelAnimationFrame(animation);animation=0;
     const recording=await sound.finishRecording();sound.releaseMic();
@@ -177,12 +180,17 @@ function cancelExercise(){controller?.abort();cancelAnimationFrame(animation);so
 function answer(index){
   if(phase!=='answer'||answers.length>=targets.length)return;
   answers.push(index);
-  const position=answers.length-1;
-  if($('sequence').children[position])$('sequence').children[position].textContent=SWARAS[index].name;
-  if(answers.length<targets.length){
-    $('phase-label').textContent=answerPrompt();
-    return;
-  }
+  updateAnswerEntry();
+}
+function updateAnswerEntry(){
+  [...$('sequence').children].forEach((el,i)=>{el.textContent=answers[i]===undefined?'?':SWARAS[answers[i]].name;el.classList.toggle('chosen',answers[i]!==undefined);});
+  $('answer-undo').disabled=answers.length===0;
+  $('answer-clear').disabled=answers.length===0;
+  $('answer-submit').disabled=answers.length!==targets.length;
+  if(phase==='answer')$('phase-label').textContent=answerPrompt();
+}
+function submitAnswer(){
+  if(phase!=='answer'||answers.length!==targets.length)return;
   const details=targets.map((target,n)=>{
     const correct=answers[n]===target;
     return {index:target,accuracy:correct?100:0,pass:correct,cents:null,stability:null,detected:true};
@@ -273,7 +281,7 @@ function drawChart(){
     c.fillStyle='#456e4b';c.beginPath();c.arc(right-9,y,5,0,Math.PI*2);c.fill();
   }
 }
-function showView(next){if(view!==next){if(busy())cancelExercise();if(view==='challenges')challenges?.reset();sound.stopNotes();if(next==='challenges'&&drone){sound.stopDrone();drone=false;updateDroneButton();}}view=next;document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==`${next}-view`);document.querySelectorAll('[data-view]').forEach(el=>{el.classList.toggle('active',el.dataset.view===next);el.setAttribute('aria-current',el.dataset.view===next?'page':'false');});if(next==='progress')renderProgress();if(next==='library')renderLibrary();if(next==='practice')requestAnimationFrame(drawChart);}
+function showView(next){if(view!==next){if(busy())cancelExercise();if(view==='challenges')challenges?.reset();if(view==='tools')tools?.stop();sound.stopNotes();if(['challenges','tools'].includes(next)&&drone){sound.stopDrone();drone=false;updateDroneButton();}}view=next;document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==`${next}-view`);document.querySelectorAll('[data-view]').forEach(el=>{el.classList.toggle('active',el.dataset.view===next);el.setAttribute('aria-current',el.dataset.view===next?'page':'false');});if(next==='progress')renderProgress();if(next==='library')renderLibrary();if(next==='practice')requestAnimationFrame(drawChart);if(next==='tools')tools?.render();}
 function renderProgress(){
   const ragaHistory=history.filter(entry=>(entry.raga||DEFAULT_RAGA)===settings.raga&&entry.notes.every(note=>note.index<SWARAS.length));
   const count=ragaHistory.length,avg=count?Math.round(ragaHistory.reduce((s,h)=>s+h.accuracy,0)/count):0;const dates=new Set(ragaHistory.map(h=>new Date(h.time).toDateString()));
@@ -299,13 +307,16 @@ function renderLibrary(){
   $('library-view').querySelectorAll('[data-practice-raga]').forEach(button=>button.onclick=()=>{selectRaga(button.dataset.practiceRaga);showView('practice');});
   $('library-view').querySelectorAll('[data-library-note]').forEach(b=>b.onclick=async()=>{await sound.unlock();sound.stopNotes();sound.tone(swaraHz(settings.base,Number(b.dataset.libraryNote)),referenceDuration());});
 }
-function syncPath(){document.querySelectorAll('[data-step]').forEach(b=>b.classList.toggle('active',Number(b.dataset.step)===step));document.querySelectorAll('[data-mode]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.mode===mode));b.textContent=b.dataset.mode==='memory'?'Sing from memory':`Learn to ${b.dataset.mode==='sing'?'sing':'name'} the ${step===1?'swara':'swaras'}`;});}
-function openSettings(){if(busy())return;if(view==='challenges')challenges?.reset();updateConfig();$('settings-dialog').showModal();}
+function syncPath(){document.querySelectorAll('[data-step]').forEach(b=>b.classList.toggle('active',Number(b.dataset.step)===step));document.querySelectorAll('[data-mode]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.mode===mode));b.textContent=b.dataset.mode==='memory'?'Sing from memory':`${b.dataset.mode==='sing'?'Sing':'Name'} the ${step===1?'swara':'swaras'}`;});}
+function openSettings(){if(busy())return;if(view==='challenges')challenges?.reset();if(view==='tools')tools?.stop();updateConfig();$('settings-dialog').showModal();}
 for(const id of ['settings-open','shruthi-open','raga-open'])$(id).onclick=openSettings;
-$('settings-dialog').addEventListener('close',()=>{if($('settings-dialog').returnValue!=='save')return;settings.base=Number($('shruthi-select').value);settings.level=$('level-select').value;settings.duration=$('duration-select').value;settings.response=Number($('response-select').value);if(drone)sound.toggleDrone(settings.base,true);selectRaga($('raga-select').value);toast('Your practice settings are saved.');});
+$('settings-dialog').querySelector('form').addEventListener('submit',event=>{if(event.submitter?.value!=='save')return;settings.base=Number($('shruthi-select').value);settings.level=$('level-select').value;settings.duration=$('duration-select').value;settings.response=Number($('response-select').value);if(drone)sound.toggleDrone(settings.base,true);selectRaga($('raga-select').value);toast('Your practice settings are saved.');});
 $('help-open').onclick=()=>$('help-dialog').showModal();
 $('drone-toggle').onclick=async()=>{if(busy()){toast('The drone is paused during pitch evaluation. Try it between exercises.');return;}try{drone=!drone;await sound.toggleDrone(settings.base,drone);updateDroneButton();}catch{drone=false;updateDroneButton();toast('Audio could not start. Try again.');}};
 $('answer-options').onclick=e=>{const b=e.target.closest('[data-answer]');if(b)answer(Number(b.dataset.answer));};
+$('answer-undo').onclick=()=>{if(phase==='answer'&&answers.length){answers.pop();updateAnswerEntry();}};
+$('answer-clear').onclick=()=>{if(phase==='answer'&&answers.length){answers=[];updateAnswerEntry();}};
+$('answer-submit').onclick=submitAnswer;
 $('begin').onclick=()=>{if(phase==='result')attempt++;begin();};$('preview-note').onclick=preview;
 // Tabs follow standard keyboard behavior as well as pointer interaction.
 const tabs=[...document.querySelectorAll('[data-mode]')];tabs.forEach((b,i)=>{b.onclick=()=>{if(mode===b.dataset.mode)return;cancelExercise();mode=b.dataset.mode;attempt=1;samples=[];syncPath();renderExercise(false);$('chart-empty').hidden=false;};b.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const index=e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[index].focus();tabs[index].click();}};});
@@ -313,7 +324,8 @@ document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{cancelExercis
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>showView(b.dataset.view));
 document.querySelector('.brand').onclick=e=>{e.preventDefault();showView('practice');};
 new ResizeObserver(()=>drawChart()).observe($('pitch-chart'));
-document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();challenges?.reset();sound.stopDrone();drone=false;updateDroneButton();}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();challenges?.reset();tools?.stop();sound.stopDrone();drone=false;updateDroneButton();}});
 window.addEventListener('pagehide',()=>sound.shutdown());
 challenges=createChallenges({sound,getSettings:()=>settings,getNotes:()=>SWARAS,onSettings:openSettings});
+tools=createTools({sound,getSettings:()=>settings,getNotes:()=>SWARAS,onSettings:openSettings});
 updateConfig();syncPath();renderExercise();
