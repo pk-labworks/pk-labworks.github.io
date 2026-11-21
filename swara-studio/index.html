@@ -7,8 +7,8 @@
   <meta name="description" content="Practice Carnatic swaras, develop your ear, and see your singing in real time. A personal music practice studio.">
   <title>Swara Studio — Listen. Sing. Find your pitch.</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20261121-8">
-  <script type="module" src="app.js?v=20261121-8"></script>
+  <link rel="stylesheet" href="styles.css?v=20261121-9">
+  <script type="module" src="app.js?v=20261121-9"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to practice</a>
@@ -49,7 +49,14 @@
             <div id="answer-controls" class="answer-controls" hidden><button id="answer-undo" class="secondary-button" type="button" disabled>Undo last</button><button id="answer-clear" class="secondary-button" type="button" disabled>Clear all</button><button id="answer-submit" class="primary-button" type="button" disabled>Check answer <span aria-hidden="true">→</span></button></div>
             <div class="panel-foot"><span id="duration-caption">3s per reference swara · 3s singing</span></div>
           </section>
-          <aside class="pitch-panel" aria-labelledby="pitch-title"><h2 id="pitch-title">Your note</h2><strong id="detected-note" aria-live="polite">—</strong></aside>
+          <aside class="pitch-panel" aria-labelledby="pitch-title">
+            <h2 id="pitch-title">Your note</h2>
+            <div class="practice-live-readout" aria-label="Current sung pitch">
+              <div class="practice-live-notes"><div><strong id="detected-note" aria-live="polite">—</strong><span id="detected-full">Your note will appear here</span></div><div><strong id="detected-western">—</strong><span id="detected-hz">— Hz</span></div></div>
+              <div class="swara-live-tuning"><span>FLAT</span><div class="swara-live-tuning-track"><i></i><i id="practice-tuning-dot"></i></div><span>SHARP</span></div>
+              <p id="detected-cents">Sing to see your tuning</p>
+            </div>
+          </aside>
         </div>
         <footer class="page-footer"><span>Built for attentive, unhurried practice.</span><span>Plain swaras · No gamakas</span></footer>
       </section>

@@ -9,7 +9,7 @@ try{const stored=JSON.parse(localStorage.getItem('swara-studio-v1')||'{}');const
 let SWARAS=RAGAS[settings.raga].notes;
 const swaraHz=(base,index)=>swaraHzFor(base,index,SWARAS);
 const scorePitch=(samples,targets,secondsPerNote,base,tolerance)=>scorePitchFor(samples,targets,secondsPerNote,base,tolerance,SWARAS);
-let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,totalSeconds=3,previewing=false,tools=null,previousLiveMidi=null,micBuffer=null;
+let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,lastLiveVoiceAt=0,totalSeconds=3,previewing=false,tools=null,previousLiveMidi=null,micBuffer=null;
 const titles={1:['THE FOUNDATIONS','One swara at a time.','Listen closely. Sing freely. Let your ear lead the way.'],2:['A STEP FORWARD','One note leads to another.','Hold two sounds in your mind, then find each swara.'],3:['MUSICAL MEMORY','Let three notes become one.','Listen for the shape of a phrase, then respond in order.']};
 const isIdentification=()=>mode==='name';
 const isMemory=()=>mode==='memory';
@@ -85,7 +85,14 @@ function renderExercise(newSequence=true){
   $('duration-caption').textContent=concealed?`Anchor Sa + ${referenceDuration()}s per swara · name in order`:isMemory()?`${settings.response}s${count>1?' / note':''} singing · no reference sound`:`${referenceDuration()}s per reference swara · ${settings.response}s${count>1?' / note':''} singing`;
   $('exercise-panel').classList.remove('show-result');$('answer-options').hidden=true;$('feedback').hidden=true;answers=[];setPhase('idle',idlePrompt());resetReadings();
 }
-function resetReadings(){$('detected-note').textContent='—';}
+function resetReadings(){
+  $('detected-note').textContent='—';
+  $('detected-full').textContent='Your note will appear here';
+  $('detected-western').textContent='—';
+  $('detected-hz').textContent='— Hz';
+  $('detected-cents').textContent='Sing to see your tuning';
+  $('practice-tuning-dot').style.left='50%';
+}
 function wait(ms,signal){return new Promise((resolve,reject)=>{if(signal.aborted)return reject(new DOMException('Cancelled','AbortError'));const cancel=()=>{clearTimeout(timer);reject(new DOMException('Cancelled','AbortError'));};const timer=setTimeout(()=>{signal.removeEventListener('abort',cancel);resolve();},ms);signal.addEventListener('abort',cancel,{once:true});});}
 function throwIfAborted(signal){if(signal.aborted)throw new DOMException('Cancelled','AbortError');}
 async function countDown(seconds,label,signal){const start=performance.now();while(performance.now()-start<seconds*1000){const remaining=Math.ceil(seconds-(performance.now()-start)/1000);$('phase-label').textContent=label;$('phase-time').textContent=`${remaining}s`;await wait(Math.min(100,seconds*1000-(performance.now()-start)),signal);}}
@@ -139,7 +146,7 @@ async function preview(){
 async function begin(){
   if(previewing){sound.stopNotes();controller?.abort();previewing=false;setPhase('idle',idlePrompt());}
   else if(busy()){cancelExercise();return;}
-  controller=new AbortController();const signal=controller.signal;samples=[];live=null;previousLiveMidi=null;lastSample=0;previewing=false;answers=[];updateAnswerEntry();$('exercise-panel').classList.remove('show-result');$('feedback').hidden=true;$('answer-options').hidden=true;resetReadings();
+  controller=new AbortController();const signal=controller.signal;samples=[];live=null;previousLiveMidi=null;lastSample=0;lastLiveVoiceAt=0;previewing=false;answers=[];updateAnswerEntry();$('exercise-panel').classList.remove('show-result');$('feedback').hidden=true;$('answer-options').hidden=true;resetReadings();
   try{
     setPhase('preparing',isIdentification()?'Preparing the reference.':'Waiting for microphone access…');await sound.unlock();throwIfAborted(signal);
     if(drone){sound.stopDrone();drone=false;updateDroneButton();}
@@ -157,9 +164,9 @@ function captureFrame(){
   if(now-lastSample>=50){
     lastSample=now;sound.analyser.getFloatTimeDomainData(micBuffer);
     const frequency=detectLivePitch(micBuffer,sound.ctx.sampleRate);
-    live=frequency?{hz:frequency,t,index:targets[current]}:null;
+    if(frequency){live={hz:frequency};lastLiveVoiceAt=now;updateLive();}
+    else if(now-lastLiveVoiceAt>700){live=null;updateLive();}
     samples.push({t,hz:frequency||null,index:targets[current]});
-    updateLive();
   }
   $('target-name').textContent=SWARAS[targets[current]].name;$('target-western').textContent=noteReadout(targets[current]);
   $('phase-label').textContent=`Sing ${SWARAS[targets[current]].name}${targets.length>1?` · note ${current+1} of ${targets.length}`:''}.`;$('phase-time').textContent=`${Math.max(0,Math.ceil(totalSeconds-t))}s`;
@@ -170,6 +177,11 @@ function updateLive(){
   const reading=livePitchReading(live.hz,settings.base,previousLiveMidi);
   previousLiveMidi=reading.midi;
   $('detected-note').textContent=reading.swara;
+  $('detected-full').textContent=reading.fullName;
+  $('detected-western').textContent=reading.western;
+  $('detected-hz').textContent=`${live.hz.toFixed(1)} Hz`;
+  $('detected-cents').textContent=reading.tuning;
+  $('practice-tuning-dot').style.left=`${reading.tuningPosition}%`;
 }
 function cancelExercise(){controller?.abort();cancelAnimationFrame(animation);sound.stopNotes();sound.finishRecording();sound.releaseMic();previewing=false;setPhase('idle',idlePrompt());$('answer-options').hidden=true;resetReadings();}
 function answer(index){
