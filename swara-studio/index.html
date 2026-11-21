@@ -7,8 +7,8 @@
   <meta name="description" content="Practice Carnatic swaras, develop your ear, and see your singing in real time. A personal music practice studio.">
   <title>Swara Studio — Listen. Sing. Find your pitch.</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20261121-6">
-  <script type="module" src="app.js?v=20261121-6"></script>
+  <link rel="stylesheet" href="styles.css?v=20261121-7">
+  <script type="module" src="app.js?v=20261121-7"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to practice</a>
@@ -49,7 +49,17 @@
             <div id="answer-controls" class="answer-controls" hidden><button id="answer-undo" class="secondary-button" type="button" disabled>Undo last</button><button id="answer-clear" class="secondary-button" type="button" disabled>Clear all</button><button id="answer-submit" class="primary-button" type="button" disabled>Check answer <span aria-hidden="true">→</span></button></div>
             <div class="panel-foot"><span id="duration-caption">3s per reference swara · 3s singing</span></div>
           </section>
-          <aside class="pitch-panel" aria-labelledby="pitch-title"><div class="pitch-header"><div><h2 id="pitch-title">Your pitch</h2><p id="pitch-subtitle">Twelve pitch positions; your raga notes are highlighted.</p></div></div><div class="chart-target"><span class="label">TARGET NOTE</span><strong id="chart-note">Sa · G♯3</strong></div><div class="chart-legend"><span><i class="legend-reference"></i> Target</span><span><i class="legend-voice"></i> Your voice</span><span><i class="legend-playing"></i> Playing</span></div><div class="chart-wrap"><canvas id="pitch-chart" aria-label="Pitch over time on twelve Carnatic pitch positions, with Upper Sa at the octave edge. Target and detected pitches are shown." role="img"></canvas><div class="chart-empty" id="chart-empty"><span aria-hidden="true">∿</span><p>Your voice will appear here.<small>Allow microphone access when you sing.</small></p></div></div><div class="pitch-readings"><div><span class="label">DETECTED SWARA</span><strong id="detected-note">—</strong></div><div><span class="label">YOUR PITCH</span><strong id="detected-hz">— <small>Hz</small></strong></div><div><span class="label">DEVIATION</span><strong id="detected-cents">— <small>cents</small></strong></div><div class="pitch-status"><span id="live-status">Ready when you are</span><i id="signal-dot"></i></div></div></aside>
+          <aside class="pitch-panel" aria-labelledby="pitch-title">
+            <div class="pitch-header"><div><h2 id="pitch-title">Your pitch</h2><p id="pitch-subtitle">Live pitch · last 2 seconds</p></div></div>
+            <div class="chart-target"><span class="label">TARGET NOTE</span><strong id="chart-note">Sa · G♯3</strong></div>
+            <div class="practice-live-readout" aria-label="Current sung pitch">
+              <div class="practice-live-notes"><div><strong id="detected-note" aria-live="polite">—</strong><span id="detected-full"></span></div><div><strong id="detected-western">—</strong><span id="detected-hz">— Hz</span></div></div>
+              <div class="swara-live-tuning"><span>FLAT</span><div class="swara-live-tuning-track"><i></i><i id="practice-tuning-dot"></i></div><span>SHARP</span></div>
+              <div class="practice-live-caption"><span id="detected-cents">Sing to see your tuning</span><span class="pitch-status"><i id="signal-dot"></i><span id="live-status">Ready when you are</span></span></div>
+            </div>
+            <div class="chart-legend"><span><i class="legend-reference"></i> Target</span><span><i class="legend-voice"></i> Your voice</span><span><i class="legend-playing"></i> Playing</span></div>
+            <div class="chart-wrap"><canvas id="pitch-chart" aria-label="Live pitch trace on twelve Carnatic pitch positions from Sa to Upper Sa, with the target highlighted" role="img"></canvas><div class="chart-empty" id="chart-empty" hidden></div></div>
+          </aside>
         </div>
         <footer class="page-footer"><span>Built for attentive, unhurried practice.</span><span>Plain swaras · No gamakas</span></footer>
       </section>

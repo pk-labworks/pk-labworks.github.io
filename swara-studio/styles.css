@@ -214,40 +214,50 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 .tool-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;max-width:1120px}
 .tool-tabs button{width:100%;padding:12px 8px 14px;text-align:center;line-height:1.3}
 
-/* Live singer pitch display. */
-.live-toolbar{display:flex;align-items:center;gap:18px;margin:10px 0 20px}
-.live-toolbar .primary-button{min-width:160px}
+/* One Swara Live display for Tools and every singing exercise. */
+.live-toolbar{display:flex;align-items:center;gap:18px;margin:10px 0 16px}
+.live-toolbar .primary-button{min-width:130px}
 #tool-mic-status{font-size:12px;color:#64775f}
-.live-pitch-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,390px);gap:22px;align-items:stretch}
-.live-readout{display:flex;flex-direction:column;justify-content:center;min-height:395px;padding:28px 30px;background:#eef3e9;border-left:3px solid #789c70;border-radius:3px}
-.live-readout>strong{font:clamp(42px,5vw,74px)/1.05 var(--serif);letter-spacing:-1px;margin:0 0 4px;overflow-wrap:anywhere}
-#tool-live-register{font-size:13px;color:#5e755b}
-.live-measures{display:grid;grid-template-columns:1fr 1fr;gap:15px;border-top:1px solid #d1ddca;margin-top:28px;padding-top:18px}
-.live-measures>div{display:flex;flex-direction:column;gap:4px}
-.live-measures strong{font:20px var(--serif);color:#31583c}
-#tool-live-raga{margin-top:20px;color:#64775f;font-size:12px;line-height:1.5}
-#tool-live-raga:empty{display:none}
-.live-scale{border:1px solid #dbe3d4;border-radius:5px;overflow:hidden;background:#fcfcf8}
-.live-pitch-row{display:grid;grid-template-columns:27px minmax(0,1fr) 105px 14px;gap:10px;align-items:center;min-height:30px;padding:0 10px;border-bottom:1px solid #e8ebe2;color:#87907f}
-.live-pitch-row:last-child{border-bottom:0}
-.live-pitch-row.in-raga{background:#f2f6ee;color:#426b48}
-.live-pitch-row.current{background:#dcebd5;color:#294f32;box-shadow:inset 4px 0 #628b5e}
-.live-position{font:10px var(--mono);color:#a1ac98}
-.live-line{height:1px;background:#bbc9b7;position:relative}
-.live-line::before{content:'';position:absolute;left:0;top:-3px;width:7px;height:7px;border-radius:50%;background:#c7cfc1}
-.live-pitch-row.in-raga .live-line::before{background:#6d9367}
-.live-pitch-row strong{font-size:12px;font-weight:650}
-.live-marker{width:11px;height:11px;border-radius:50%;background:#ab6b48;opacity:0;box-shadow:0 0 0 3px #ffffffaa}
-.live-pitch-row.current .live-marker{opacity:1}
-@media(max-width:800px){.live-pitch-layout{grid-template-columns:1fr}.live-readout{min-height:260px}}
-@media(max-width:580px){
-  .exercise-tabs button{font-size:13.5px;padding:0 0 12px}
-  .tool-tabs button{font-size:11px;padding-inline:4px}
-  .live-toolbar{flex-direction:column;align-items:flex-start;gap:9px}
-  .live-readout{padding:22px;min-height:235px}
-  .live-readout>strong{font-size:49px}
-  .live-pitch-row{grid-template-columns:21px minmax(0,1fr) 90px 12px;gap:7px;padding:0 8px}
-}
+.swara-live-readout,.practice-live-readout{background:#eef3e9;border-left:3px solid #789c70;border-radius:3px;color:#31583c}
+.swara-live-readout{padding:17px 21px;margin-bottom:15px}
+.swara-live-note-row,.practice-live-notes{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.swara-live-note-row>div,.practice-live-notes>div{display:flex;flex-direction:column;min-width:0}
+#tool-live-note{font:clamp(38px,4.5vw,58px)/1 var(--serif);overflow-wrap:anywhere}
+#tool-live-name,#detected-full{font-size:11px;color:#6b8268;min-height:17px}
+.swara-live-western,.practice-live-notes>div:last-child{text-align:right;align-items:flex-end;white-space:nowrap}
+#tool-live-western,#detected-western{font:22px var(--serif)}
+#tool-live-hz,#detected-hz{font:11px var(--mono);color:#6b8268}
+.swara-live-tuning{display:flex;align-items:center;gap:12px;margin-top:12px;color:#6e806b;font:9px var(--mono);letter-spacing:.5px}
+.swara-live-tuning-track{height:6px;border-radius:8px;background:linear-gradient(90deg,#c3d2bc,#e8ecdf 50%,#c3d2bc);position:relative;flex:1}
+.swara-live-tuning-track i:first-child{position:absolute;left:50%;top:-4px;width:1px;height:14px;background:#6e806b}
+.swara-live-tuning-track i:last-child{position:absolute;left:50%;top:-5px;width:16px;height:16px;border-radius:50%;background:#ad7152;border:2px solid #fff;box-shadow:0 1px 4px #31564033;transform:translateX(-50%);transition:left .08s linear}
+#tool-live-cents{font-size:11px;margin-top:9px;color:#61795f}
+.swara-live-trace{border:1px solid #dbe3d4;border-radius:5px;background:#fcfcf8;padding:13px 15px 10px}
+.swara-live-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+.swara-live-section-heading h3,.swara-live-scale-section h3{font:22px var(--serif)}
+.swara-live-section-heading button{height:31px;font-size:10px}
+#tool-live-trace{width:100%;height:290px;display:block}
+.swara-live-trace>p{font-size:10px;color:#788879;margin:4px 0 0}
+.swara-live-scale-section{margin-top:18px}
+.swara-live-scale-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;margin-top:10px}
+.swara-live-scale-item{display:flex;flex-direction:column;gap:2px;border:1px solid #dce4d6;padding:7px 8px;border-radius:4px;min-width:0;color:#71836e;background:#fbfcf8}
+.swara-live-scale-item.in-raga{background:#e9f1e5;border-color:#b9d0b5;color:#315b3c}
+.swara-live-scale-item.active{outline:2px solid #ae754f;background:#d8ebd2}
+.swara-live-scale-item strong{font-size:12px}
+.swara-live-scale-item small{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.practice-live-readout{padding:12px 14px;margin:5px 0 12px}
+#detected-note{font:32px/1 var(--serif);overflow-wrap:anywhere}
+#detected-full{font-size:9px}
+#detected-western{font-size:17px}
+#detected-hz{font-size:10px}
+.practice-live-readout .swara-live-tuning{margin-top:10px;gap:7px;font-size:8px}
+.practice-live-caption{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:8px;font-size:9px;color:#61795f}
+.practice-live-caption .pitch-status{display:flex;align-items:center;gap:4px;margin:0;font-size:9px;white-space:nowrap}
+.practice-layout .chart-legend{flex-wrap:wrap;gap:7px 13px}
+.practice-layout .chart-wrap{height:208px;margin:8px 0 10px}
+@media(min-width:851px) and (max-height:900px){.practice-layout .chart-wrap{height:145px}.practice-live-readout{padding:9px 12px;margin-bottom:8px}}
+@media(max-width:720px){.swara-live-scale-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.swara-live-readout{padding:14px}.swara-live-trace{padding:10px}.swara-live-section-heading h3{font-size:19px}#tool-live-trace{height:245px}.practice-layout .chart-legend{flex-direction:row}.practice-live-caption .pitch-status{display:flex}}
+@media(max-width:580px){.exercise-tabs button{font-size:13.5px;padding:0 0 12px}.tool-tabs button{font-size:11px;padding-inline:4px}.live-toolbar{flex-direction:column;align-items:flex-start;gap:9px}#tool-live-note{font-size:40px}}
 @media(max-width:1190px){.exercise-tabs{gap:19px}}
 @media(max-width:980px){.exercise-tabs button{font-size:15px}}
 @media(max-width:720px){.exercise-tabs{gap:22px}.exercise-tabs button{font-size:13.5px}}

@@ -1,9 +1,10 @@
-import {RAGAS,PITCH_POSITION_LABELS,midiHz,noteName,detectPitch} from './music.js?v=20261116-13';
+import {RAGAS,PITCH_POSITION_LABELS,midiHz,noteName} from './music.js?v=20261116-13';
+import {LIVE_SWARAS,LIVE_WINDOW_MS,LIVE_GRAPH_FRAME_MS,detectLivePitch,livePitchReading,drawLiveTrace} from './swara-live-core.js?v=20261121-1';
 
 export function createTools({sound,getSettings,getNotes,onSettings}){
   const host=document.getElementById('tools-view');
   let mode='see',selectedOffset=0,playingOffset=null,timer=null,requestId=0;
-  let micController=null,micPending=false,listening=false,micFrame=0,lastFrame=0,lastVoice=0,micError='',recentPitches=[];
+  let micController=null,micPending=false,listening=false,micFrame=0,lastAnalysis=0,lastDraw=0,lastVoice=0,micError='',previousMidi=null,micSamples=null,liveHistory=[];
   const blackPitchClasses=new Set([1,3,6,8,10]);
   const isBlack=midi=>blackPitchClasses.has(((midi%12)+12)%12);
   const position=offset=>((offset%12)+12)%12;
@@ -27,57 +28,59 @@ export function createTools({sound,getSettings,getNotes,onSettings}){
     micController?.abort();micController=null;
     cancelAnimationFrame(micFrame);micFrame=0;
     if(micPending||listening)sound.releaseMic();
-    micPending=false;listening=false;recentPitches=[];
+    micPending=false;listening=false;previousMidi=null;micSamples=null;
+    clearLive();
+    const micButton=host.querySelector('#tool-mic');
+    if(micButton){micButton.textContent='Start';micButton.setAttribute('aria-label','Start pitch detection');micButton.setAttribute('aria-pressed','false');}
+    const status=host.querySelector('#tool-mic-status');if(status)status.textContent='';
     host.querySelectorAll('.piano-key.playing').forEach(key=>key.classList.remove('playing'));
     const button=host.querySelector('#tool-stop');
     if(button)button.disabled=true;
   }
   function liveView(){
-    const rows=Array.from({length:13},(_,i)=>12-i).map(offset=>{
-      const inRaga=offset===12||!!ragaNote(offset);
-      return `<div class="live-pitch-row${inRaga?' in-raga':''}" data-live-row="${offset}"><span class="live-position">${String(offset).padStart(2,'0')}</span><span class="live-line"></span><strong>${offset===12?'Upper Sa':label(offset)}</strong><span class="live-marker" aria-hidden="true"></span></div>`;
-    }).join('');
+    const scale=LIVE_SWARAS.map(([name,description],index)=>`<div class="swara-live-scale-item${ragaNote(index)?' in-raga':''}" data-scale-index="${index}"><strong>${name}</strong><small>${description.split(' / ')[1]}</small></div>`).join('');
     const state=micPending?'Connecting to microphone…':micError||'';
-    return `<div class="tool-surface"><div class="tool-surface-heading"><div><h2>Sing and see the swara</h2><p>Sing a note. Your Sa is ${noteName(getSettings().base)}. Green positions belong to ${RAGAS[getSettings().raga].name}.</p></div><button class="secondary-button" id="tool-settings">Change shruthi or raga</button></div><div class="live-toolbar"><button class="primary-button" id="tool-mic" aria-pressed="${micPending||listening}" aria-label="${micPending?'Cancel microphone request':listening?'Stop pitch detection':'Start pitch detection'}">${micPending?'Cancel':listening?'Stop':'Start'}</button><span id="tool-mic-status" role="status">${state}</span></div><div class="live-pitch-layout"><div class="live-readout"><strong id="tool-live-note" aria-live="polite">—</strong><span id="tool-live-register">Sing to see your swara</span><div class="live-measures"><div><span class="label">YOUR PITCH</span><strong id="tool-live-hz">—</strong></div><div><span class="label">NEAREST PITCH</span><strong id="tool-live-cents">—</strong></div></div><p id="tool-live-raga"></p></div><div class="live-scale" role="img" aria-label="Twelve pitch positions from Sa to Upper Sa. The current sung pitch is marked while listening.">${rows}</div></div><p class="tool-caption">Pitch positions repeat in each octave.</p></div>`;
+    return `<div class="tool-surface swara-live-tool"><div class="tool-surface-heading"><div><h2>Swara Live</h2><p>Sing a steady note. Your Sa is ${noteName(getSettings().base)}; ${RAGAS[getSettings().raga].name} swaras are green.</p></div><button class="secondary-button" id="tool-settings">Change shruthi or raga</button></div><div class="live-toolbar"><button class="primary-button" id="tool-mic" aria-pressed="${micPending||listening}" aria-label="${micPending?'Cancel microphone request':listening?'Stop pitch detection':'Start pitch detection'}">${micPending?'Cancel':listening?'Stop':'Start'}</button><span id="tool-mic-status" role="status">${state}</span></div><section class="swara-live-readout" aria-label="Current sung pitch"><div class="swara-live-note-row"><div><strong id="tool-live-note" aria-live="polite">—</strong><span id="tool-live-name">Your note will appear here</span></div><div class="swara-live-western"><strong id="tool-live-western">—</strong><span id="tool-live-hz">— Hz</span></div></div><div class="swara-live-tuning"><span>FLAT</span><div class="swara-live-tuning-track"><i></i><i id="tool-tuning-dot"></i></div><span>SHARP</span></div><p id="tool-live-cents">Sing to see your tuning</p></section><section class="swara-live-trace"><div class="swara-live-section-heading"><h3>Last 2 seconds</h3><button class="secondary-button" id="tool-clear-trace" type="button">Clear graph</button></div><canvas id="tool-live-trace" role="img" aria-label="Live pitch trace over the last two seconds, from Sa to Upper Sa, scrolling under a fixed now marker"></canvas><p>Notes outside this octave appear in the readout above.</p></section><section class="swara-live-scale-section"><h3>Swaras around your Sa</h3><div class="swara-live-scale-grid">${scale}</div></section><p class="tool-caption">Microphone audio stays on this device.</p></div>`;
   }
   function clearLive(){
     const note=host.querySelector('#tool-live-note');if(!note)return;
     note.textContent='—';
-    host.querySelector('#tool-live-register').textContent='Sing to see your swara';
-    host.querySelector('#tool-live-hz').textContent='—';
-    host.querySelector('#tool-live-cents').textContent='—';
-    host.querySelector('#tool-live-raga').textContent='';
-    host.querySelectorAll('.live-pitch-row.current').forEach(row=>row.classList.remove('current'));
+    host.querySelector('#tool-live-name').textContent='Your note will appear here';
+    host.querySelector('#tool-live-western').textContent='—';
+    host.querySelector('#tool-live-hz').textContent='— Hz';
+    host.querySelector('#tool-live-cents').textContent='Sing to see your tuning';
+    host.querySelector('#tool-tuning-dot').style.left='50%';
+    host.querySelectorAll('.swara-live-scale-item.active').forEach(item=>item.classList.remove('active'));
   }
-  function showPitch(hz){
-    const exact=12*Math.log2(hz/midiHz(getSettings().base));
-    const nearest=Math.round(exact),pitchClass=position(nearest);
-    const note=ragaNote(nearest),variant=nearest===12?'Upper Sa':note?label(nearest):PITCH_POSITION_LABELS[pitchClass];
-    const octave=nearest<0?'Lower octave':nearest>=12?'Higher octave':'Middle octave';
-    const swaraName=nearest===12?'Upper Sa':nearest<0?'Lower '+variant:nearest>12?'Higher '+variant:variant;
-    const cents=Math.round((exact-nearest)*100);
-    host.querySelector('#tool-live-note').textContent=swaraName;
-    host.querySelector('#tool-live-register').textContent=`${octave} · ${noteName(getSettings().base+nearest)}`;
-    host.querySelector('#tool-live-hz').textContent=`${hz.toFixed(1)} Hz`;
-    host.querySelector('#tool-live-cents').textContent=`${cents>0?'+':''}${cents} cents`;
-    host.querySelector('#tool-live-raga').textContent=note||pitchClass===0?`In ${RAGAS[getSettings().raga].name}`:`Outside ${RAGAS[getSettings().raga].name}`;
-    host.querySelectorAll('.live-pitch-row.current').forEach(row=>row.classList.remove('current'));
-    const displayOffset=nearest===12?12:pitchClass;
-    host.querySelector(`[data-live-row="${displayOffset}"]`)?.classList.add('current');
+  function showPitch(frequency,now){
+    const reading=livePitchReading(frequency,getSettings().base,previousMidi);
+    previousMidi=reading.midi;lastVoice=now;
+    host.querySelector('#tool-live-note').textContent=reading.swara;
+    host.querySelector('#tool-live-name').textContent=reading.fullName;
+    host.querySelector('#tool-live-western').textContent=reading.western;
+    host.querySelector('#tool-live-hz').textContent=`${frequency.toFixed(1)} Hz`;
+    host.querySelector('#tool-live-cents').textContent=reading.tuning;
+    host.querySelector('#tool-tuning-dot').style.left=`${reading.tuningPosition}%`;
+    host.querySelectorAll('.swara-live-scale-item').forEach((item,i)=>item.classList.toggle('active',i===reading.index));
+    liveHistory.push({midi:reading.exactMidi,time:now});
+  }
+  function drawTrace(now=performance.now()){
+    liveHistory=liveHistory.filter(point=>point.time>=now-LIVE_WINDOW_MS);
+    drawLiveTrace(host.querySelector('#tool-live-trace'),liveHistory,getSettings().base,now,{
+      inRaga:offset=>offset===12||!!ragaNote(offset),
+      labelAt:offset=>offset===12?'Upper Sa':LIVE_SWARAS[offset][0]
+    });
   }
   function followVoice(now){
     if(!listening||!sound.analyser||host.hidden||mode!=='see')return;
-    if(now-lastFrame>=75){
-      lastFrame=now;
-      const buffer=new Float32Array(sound.analyser.fftSize);
-      sound.analyser.getFloatTimeDomainData(buffer);
-      const found=detectPitch(buffer,sound.ctx.sampleRate);
-      if(found){
-        lastVoice=now;recentPitches.push(found.hz);if(recentPitches.length>5)recentPitches.shift();
-        const sorted=[...recentPitches].sort((a,b)=>a-b);
-        showPitch(sorted[Math.floor(sorted.length/2)]);
-      }else if(now-lastVoice>350){recentPitches=[];clearLive();}
+    if(now-lastAnalysis>=55){
+      lastAnalysis=now;
+      sound.analyser.getFloatTimeDomainData(micSamples);
+      const frequency=detectLivePitch(micSamples,sound.ctx.sampleRate);
+      if(frequency)showPitch(frequency,now);
+      else if(now-lastVoice>700){clearLive();previousMidi=null;}
     }
+    if(now-lastDraw>=LIVE_GRAPH_FRAME_MS-1){drawTrace(now);lastDraw=now;}
     micFrame=requestAnimationFrame(followVoice);
   }
   async function startMic(){
@@ -90,7 +93,9 @@ export function createTools({sound,getSettings,getNotes,onSettings}){
       if(token!==requestId)return;
       await sound.microphone(controller.signal);
       if(token!==requestId||host.hidden||mode!=='see'){sound.releaseMic();return;}
-      micPending=false;listening=true;lastFrame=0;lastVoice=performance.now();render();
+      sound.analyser.fftSize=4096;sound.analyser.smoothingTimeConstant=0;
+      micSamples=new Float32Array(sound.analyser.fftSize);
+      micPending=false;listening=true;lastAnalysis=0;lastDraw=0;lastVoice=performance.now();render();
       micFrame=requestAnimationFrame(followVoice);
     }catch(error){
       if(token!==requestId||error.name==='AbortError')return;
@@ -120,8 +125,9 @@ export function createTools({sound,getSettings,getNotes,onSettings}){
   }
   function render(){
     host.innerHTML=`<p class="eyebrow">SWARA TOOLS</p><h1 class="progress-intro">Explore every pitch.</h1><p class="page-description">Sing to see your pitch, or hear a swara on a keyboard set to your shruthi.</p><div class="tool-tabs" role="tablist" aria-label="Swara tools"><button role="tab" data-tool="see" aria-selected="${mode==='see'}">Sing</button><button role="tab" data-tool="play" aria-selected="${mode==='play'}">Play</button></div>${mode==='see'?liveView():piano()}`;
+    if(mode==='see')requestAnimationFrame(()=>{if(!host.hidden)drawTrace();});
   }
-  function reset(){stop();selectedOffset=0;if(!host.hidden)render();}
+  function reset(){stop();selectedOffset=0;liveHistory=[];if(!host.hidden)render();}
   async function play(offset){
     if(playingOffset===offset){stop();render();return;}
     stop();selectedOffset=offset;
@@ -141,8 +147,10 @@ export function createTools({sound,getSettings,getNotes,onSettings}){
     if(event.target.closest('#tool-settings')){stop();onSettings();return;}
     if(event.target.closest('#tool-stop')){stop();render();return;}
     if(event.target.closest('#tool-mic')){startMic();return;}
+    if(event.target.closest('#tool-clear-trace')){liveHistory=[];drawTrace();return;}
     const key=event.target.closest('[data-key]');
     if(key)play(Number(key.dataset.key));
   });
+  window.addEventListener('resize',()=>{if(mode==='see'&&!host.hidden)drawTrace();});
   return {render,stop,reset};
 }
