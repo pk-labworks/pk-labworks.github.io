@@ -185,11 +185,11 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 .piano{height:200px;position:relative;max-width:none}
 .piano-key{position:absolute;top:0;display:flex;align-items:flex-end;justify-content:center;padding:0 2px 14px;white-space:normal;overflow-wrap:anywhere;text-align:center;touch-action:manipulation;transition:background .12s}
 .piano-key.white{width:58px;height:196px;border:1px solid #b8c3b2;border-radius:0 0 5px 5px;background:#fffefb;color:#667b64;font-size:9px;z-index:1}
-.piano-key.white.in-raga{background:#eaf2e5;color:#3b6442;font-weight:650}
+.piano-key.white.in-raga{background:#4f7954;border-color:#3e6545;color:#fff;font-weight:650}
 .piano-key.black{width:38px;height:126px;border:1px solid #29392d;border-radius:0 0 4px 4px;background:#3e4940;color:#edf1e9;font-size:8px;z-index:2}
-.piano-key.black.in-raga{background:#4f7954;border-color:#3e6545;font-weight:650}
+.piano-key.black.in-raga{background:#4f7954;border-color:#3e6545;color:#fff;font-weight:650}
 .piano-key.selected{outline:3px solid #ad7650;outline-offset:-4px}
-.piano-key.playing{background:#b1cc9f!important;color:#1e422e!important;box-shadow:0 4px 13px #3d613d50}
+.piano-key.playing{box-shadow:0 4px 13px #3d613d50;outline:3px solid #ad7650;outline-offset:-4px}
 .piano-key:focus-visible{outline:3px solid #ad7650;outline-offset:-4px;z-index:3}
 .piano-footer{display:flex;align-items:stretch;justify-content:space-between;gap:16px;margin-top:12px}
 .piano-footer .tool-detail{flex:1}
@@ -208,9 +208,9 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
   .piano-footer .secondary-button{align-self:flex-start;min-height:37px}
 }
 
-/* Give each practice and tool choice the full width of its column. */
-.exercise-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;overflow:visible}
-.exercise-tabs button{width:100%;padding:12px 8px 14px;text-align:center;white-space:normal;font-size:12px;line-height:1.3}
+/* Keep the practice choices together while making their labels prominent. */
+.exercise-tabs{display:flex;flex-wrap:wrap;column-gap:27px;row-gap:2px;overflow:visible}
+.exercise-tabs button{width:auto;flex:none;padding:0 0 14px;text-align:left;white-space:nowrap;font-size:33px;line-height:1.2}
 .tool-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;max-width:1120px}
 .tool-tabs button{width:100%;padding:12px 8px 14px;text-align:center;line-height:1.3}
 
@@ -226,6 +226,7 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 .live-measures>div{display:flex;flex-direction:column;gap:4px}
 .live-measures strong{font:20px var(--serif);color:#31583c}
 #tool-live-raga{margin-top:20px;color:#64775f;font-size:12px;line-height:1.5}
+#tool-live-raga:empty{display:none}
 .live-scale{border:1px solid #dbe3d4;border-radius:5px;overflow:hidden;background:#fcfcf8}
 .live-pitch-row{display:grid;grid-template-columns:27px minmax(0,1fr) 105px 14px;gap:10px;align-items:center;min-height:30px;padding:0 10px;border-bottom:1px solid #e8ebe2;color:#87907f}
 .live-pitch-row:last-child{border-bottom:0}
@@ -240,10 +241,13 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 .live-pitch-row.current .live-marker{opacity:1}
 @media(max-width:800px){.live-pitch-layout{grid-template-columns:1fr}.live-readout{min-height:260px}}
 @media(max-width:580px){
-  .exercise-tabs button{font-size:11px;padding:12px 4px 13px}
+  .exercise-tabs button{font-size:27px;padding:0 0 12px}
   .tool-tabs button{font-size:11px;padding-inline:4px}
   .live-toolbar{flex-direction:column;align-items:flex-start;gap:9px}
   .live-readout{padding:22px;min-height:235px}
   .live-readout>strong{font-size:49px}
   .live-pitch-row{grid-template-columns:21px minmax(0,1fr) 90px 12px;gap:7px;padding:0 8px}
 }
+@media(max-width:1190px){.exercise-tabs{gap:19px}}
+@media(max-width:980px){.exercise-tabs button{font-size:30px}}
+@media(max-width:720px){.exercise-tabs{gap:22px}.exercise-tabs button{font-size:27px}}

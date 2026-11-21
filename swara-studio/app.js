@@ -1,5 +1,5 @@
 import {RAGA_LIST,RAGAS,DEFAULT_RAGA,PITCH_POSITION_LABELS,midiHz,swaraHz as swaraHzFor,noteName,nearestSwara as nearestSwaraFor,centsBetween,detectPitch,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261116-13';
-import {createTools} from './tools.js?v=20261121-2';
+import {createTools} from './tools.js?v=20261121-3';
 const $=id=>document.getElementById(id);
 const sound=new SoundEngine();
 const defaults={base:56,raga:DEFAULT_RAGA,level:'beginner',duration:'3',response:3};
@@ -170,7 +170,7 @@ function captureFrame(){
   [...$('sequence').children].forEach((el,i)=>el.classList.toggle('current',current===i));animation=requestAnimationFrame(captureFrame);
 }
 function updateLive(){
-  if(!live){$('detected-note').textContent='—';$('detected-hz').innerHTML='— <small>Hz</small>';$('detected-cents').innerHTML='— <small>cents</small>';$('live-status').textContent='Listening for your voice…';$('signal-dot').classList.remove('on');return;}
+  if(!live){$('detected-note').textContent='—';$('detected-hz').innerHTML='— <small>Hz</small>';$('detected-cents').innerHTML='— <small>cents</small>';$('live-status').textContent='';$('signal-dot').classList.remove('on');return;}
   const nearest=nearestSwara(live.hz,settings.base),cents=centsBetween(live.hz,swaraHz(settings.base,live.index));
   $('detected-note').textContent=Math.abs(nearest.cents)>60?'Outside raga':SWARAS[nearest.index].name+(nearest.octave<0?' (lower)':nearest.octave>0?' (upper)':'');$('detected-hz').innerHTML=`${live.hz.toFixed(1)} <small>Hz</small>`;$('detected-cents').innerHTML=`${cents>0?'+':''}${Math.round(cents)} <small>cents</small>`;$('live-status').textContent=Math.abs(cents)<=tolerance()?'Finding the center':cents>0?'A little high · ease down':'A little low · lift gently';$('signal-dot').classList.add('on');
 }
@@ -305,7 +305,7 @@ function renderLibrary(){
   $('library-view').querySelectorAll('[data-practice-raga]').forEach(button=>button.onclick=()=>{selectRaga(button.dataset.practiceRaga);showView('practice');});
   $('library-view').querySelectorAll('[data-library-note]').forEach(b=>b.onclick=async()=>{await sound.unlock();sound.stopNotes();sound.tone(swaraHz(settings.base,Number(b.dataset.libraryNote)),referenceDuration());});
 }
-function syncPath(){document.querySelectorAll('[data-step]').forEach(b=>b.classList.toggle('active',Number(b.dataset.step)===step));document.querySelectorAll('[data-mode]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.mode===mode));b.textContent=b.dataset.mode==='memory'?'Sing from memory':`${b.dataset.mode==='sing'?'Sing':'Name'} the ${step===1?'swara':'swaras'}`;});}
+function syncPath(){document.querySelectorAll('[data-step]').forEach(b=>b.classList.toggle('active',Number(b.dataset.step)===step));document.querySelectorAll('[data-mode]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.mode===mode));b.textContent=b.dataset.mode==='memory'?'Sing from memory':b.dataset.mode==='sing'?`Listen and repeat ${step===1?'swara':'swaras'}`:`Name the ${step===1?'swara':'swaras'}`;});}
 function openSettings(){if(busy())return;if(view==='tools')tools?.stop();updateConfig();$('settings-dialog').showModal();}
 for(const id of ['settings-open','shruthi-open','raga-open'])$(id).onclick=openSettings;
 $('settings-dialog').querySelector('form').addEventListener('submit',event=>{if(event.submitter?.value!=='save')return;settings.base=Number($('shruthi-select').value);settings.level=$('level-select').value;settings.duration=$('duration-select').value;settings.response=Number($('response-select').value);if(drone)sound.toggleDrone(settings.base,true);selectRaga($('raga-select').value);toast('Your practice settings are saved.');});
