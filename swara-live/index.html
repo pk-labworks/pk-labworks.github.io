@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Swara Live</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app">
+    <header class="topbar"><div class="brand"><span class="brand-mark">◉</span><span>SWARA <b>LIVE</b></span></div><span class="top-note">A listening space for your voice</span></header>
+    <section class="hero">
+      <div class="eyebrow">VOICE · PITCH · SWARA</div>
+      <h1>See the notes<br><em>as you sing.</em></h1>
+      <p>Choose your Sa, allow microphone access, and sing one note at a time. Your swara appears here as your voice moves.</p>
+      <div class="controls">
+        <label for="tonic">Your Sa <small>(tonic)</small></label>
+        <select id="tonic"></select>
+        <button id="listen" type="button"><span id="button-icon">●</span> <span id="button-text">Start listening</span></button>
+      </div>
+      <div id="status" class="status" role="status">Ready when you are.</div>
+    </section>
+    <section class="readout" aria-live="polite">
+      <div class="readout-heading"><span>NOW SINGING</span><span id="signal" class="signal">MIC OFF</span></div>
+      <div class="note-row"><div><div id="swara" class="swara">—</div><div id="swara-name" class="swara-name">Your note will appear here</div></div><div class="pitch"><strong id="western">—</strong><span id="frequency">— Hz</span></div></div>
+      <div class="tuning"><span>FLAT</span><div class="tuning-track"><i id="tuning-center"></i><i id="tuning-dot"></i></div><span>SHARP</span></div>
+      <div id="cents" class="cents">Sing a steady note to see its tuning</div>
+    </section>
+    <section class="trace-section"><div class="section-heading"><div><span class="eyebrow">YOUR MELODY</span><h2>Last 2 seconds</h2></div><button id="clear" class="text-button" type="button">Clear graph</button></div><canvas id="trace" role="img" aria-label="Pitch graph with a fixed now marker, the last two seconds scrolling left, and one octave from Sa to upper Sa on the vertical axis"></canvas><p class="scale-note">Your pitch moves left beneath the fixed “now” marker. The graph shows your selected Sa to upper Sa; notes outside this octave appear in the live readout above.</p></section>
+    <section class="scale-section"><div class="section-heading"><div><span class="eyebrow">THE SCALE</span><h2>Swaras around your Sa</h2></div><span class="caption">12 pitch positions · octave independent</span></div><div id="scale" class="scale"></div><p class="scale-note">Carnatic names are shown. The matching Hindustani names appear beneath each swara.</p></section>
+    <footer>Microphone audio stays in your browser and is never uploaded.</footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
