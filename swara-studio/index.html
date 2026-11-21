@@ -7,8 +7,8 @@
   <meta name="description" content="Practice Carnatic swaras, develop your ear, and see your singing in real time. A personal music practice studio.">
   <title>Swara Studio — Listen. Sing. Find your pitch.</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20261121-7">
-  <script type="module" src="app.js?v=20261121-7"></script>
+  <link rel="stylesheet" href="styles.css?v=20261121-8">
+  <script type="module" src="app.js?v=20261121-8"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to practice</a>
@@ -39,27 +39,17 @@
         <div class="practice-layout">
           <section class="exercise-panel" id="exercise-panel" aria-labelledby="exercise-title">
             <div class="exercise-header"><span class="label" id="exercise-count">EXERCISE 01</span><span class="level-tag" id="level-tag">Beginner</span></div>
-            <h2 id="exercise-title">Listen. Then make it your own.</h2><p class="exercise-instruction" id="exercise-instruction">Hear the reference, then hold the same swara in your voice.</p>
+            <h2 id="exercise-title">Listen and Sing</h2>
             <section id="feedback" class="feedback" aria-live="polite" hidden></section>
             <div class="note-stage" id="note-stage"><div class="sound-orbit" aria-hidden="true"><svg viewBox="0 0 230 230"><circle cx="115" cy="115" r="109"/><circle cx="115" cy="115" r="91"/><circle cx="115" cy="115" r="73"/><path d="M1 115h27m174 0h27M115 1v27m0 174v27"/></svg></div><div class="reference-note"><span class="note-kicker" id="note-kicker">YOUR REFERENCE</span><strong id="target-name">Sa</strong><span id="target-western">G♯3 · 207.65 Hz</span></div></div>
             <div class="sequence" id="sequence" hidden></div>
             <div class="phase-strip"><span class="phase-dot" id="phase-dot"></span><span id="phase-label">A quiet breath, then begin.</span><span class="phase-time" id="phase-time"></span></div>
-            <div class="exercise-actions"><button id="preview-note" class="secondary-button" aria-label="Play the swara"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 8v4h3l4 3V5L6 8H3zM13 6c3 2 3 6 0 8M15 3c5 4 5 10 0 14"/></svg><span>Play the swara</span></button><button id="begin" class="primary-button"><span>Sing the swara</span><span aria-hidden="true">→</span></button></div>
+            <div class="exercise-actions"><button id="preview-note" class="secondary-button" aria-label="Play the swara"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 8v4h3l4 3V5L6 8H3zM13 6c3 2 3 6 0 8M15 3c5 4 5 10 0 14"/></svg><span>Play</span></button><button id="begin" class="primary-button"><span>Sing</span><span aria-hidden="true">→</span></button></div>
             <div id="answer-options" class="answer-options" hidden aria-label="Name the swaras in order"></div>
             <div id="answer-controls" class="answer-controls" hidden><button id="answer-undo" class="secondary-button" type="button" disabled>Undo last</button><button id="answer-clear" class="secondary-button" type="button" disabled>Clear all</button><button id="answer-submit" class="primary-button" type="button" disabled>Check answer <span aria-hidden="true">→</span></button></div>
             <div class="panel-foot"><span id="duration-caption">3s per reference swara · 3s singing</span></div>
           </section>
-          <aside class="pitch-panel" aria-labelledby="pitch-title">
-            <div class="pitch-header"><div><h2 id="pitch-title">Your pitch</h2><p id="pitch-subtitle">Live pitch · last 2 seconds</p></div></div>
-            <div class="chart-target"><span class="label">TARGET NOTE</span><strong id="chart-note">Sa · G♯3</strong></div>
-            <div class="practice-live-readout" aria-label="Current sung pitch">
-              <div class="practice-live-notes"><div><strong id="detected-note" aria-live="polite">—</strong><span id="detected-full"></span></div><div><strong id="detected-western">—</strong><span id="detected-hz">— Hz</span></div></div>
-              <div class="swara-live-tuning"><span>FLAT</span><div class="swara-live-tuning-track"><i></i><i id="practice-tuning-dot"></i></div><span>SHARP</span></div>
-              <div class="practice-live-caption"><span id="detected-cents">Sing to see your tuning</span><span class="pitch-status"><i id="signal-dot"></i><span id="live-status">Ready when you are</span></span></div>
-            </div>
-            <div class="chart-legend"><span><i class="legend-reference"></i> Target</span><span><i class="legend-voice"></i> Your voice</span><span><i class="legend-playing"></i> Playing</span></div>
-            <div class="chart-wrap"><canvas id="pitch-chart" aria-label="Live pitch trace on twelve Carnatic pitch positions from Sa to Upper Sa, with the target highlighted" role="img"></canvas><div class="chart-empty" id="chart-empty" hidden></div></div>
-          </aside>
+          <aside class="pitch-panel" aria-labelledby="pitch-title"><h2 id="pitch-title">Your note</h2><strong id="detected-note" aria-live="polite">—</strong></aside>
         </div>
         <footer class="page-footer"><span>Built for attentive, unhurried practice.</span><span>Plain swaras · No gamakas</span></footer>
       </section>
@@ -69,7 +59,7 @@
     </main>
   </div>
   <dialog id="settings-dialog"><form method="dialog"><div class="dialog-heading"><div><p class="eyebrow">MAKE IT YOURS</p><h2>Practice settings</h2></div><button class="icon-button dialog-close" aria-label="Close settings" value="cancel">✕</button></div><p class="dialog-description">A comfortable starting note makes room for better listening.</p><label for="shruthi-select">Base shruthi <span>Your Sa</span></label><select id="shruthi-select"><option value="54">F♯3</option><option value="55">G3</option><option value="56" selected>G♯3</option><option value="57">A3</option><option value="58">A♯3</option><option value="59">B3</option><option value="60">C4</option><option value="61">C♯4</option></select><label for="raga-select">Raga</label><select id="raga-select"><option value="mayamalavagowla">Mayamalavagowla</option><option value="kalyani">Kalyani</option><option value="sankarabharanam">Sankarabharanam</option><option value="harikambhoji">Harikambhoji</option><option value="kharaharapriya">Kharaharapriya</option><option value="mohanam">Mohanam</option></select><p class="field-note">Practice notes and naming choices follow the selected raga. Explore their scales in the Swara library.</p><label for="level-select">Difficulty</label><select id="level-select"><option value="beginner">Beginner · ±35 cents</option><option value="intermediate">Intermediate · ±25 cents</option><option value="advanced">Advanced · ±15 cents</option></select><div class="form-columns"><div><label for="duration-select">Reference swara playback</label><select id="duration-select"><option value="3" selected>3 seconds per swara</option><option value="5">5 seconds per swara</option><option value="10">10 seconds per swara</option></select></div><div><label for="response-select">Time to sing</label><select id="response-select"><option value="3" selected>3 seconds per note</option><option value="5">5 seconds per note</option><option value="10">10 seconds per note</option></select></div></div><p class="field-note">Reference notes use piano-like tones at equal-tempered pitches relative to your selected Sa.</p><button id="settings-save" value="save" class="primary-button full-width">Save settings <span>→</span></button></form></dialog>
-  <dialog id="help-dialog"><form method="dialog"><div class="dialog-heading"><div><p class="eyebrow">WELCOME TO SWARA STUDIO</p><h2>Make space for a note.</h2></div><button class="icon-button" aria-label="Close guide">✕</button></div><div class="help-steps"><p><strong>01 &nbsp; Settle into your shruthi.</strong>Choose a Sa that feels comfortable. G♯3 is the starting point; change it anytime in settings.</p><p><strong>02 &nbsp; Listen, then sing.</strong>Use headphones and a quiet room. Begin practice, allow the microphone, and follow the prompts.</p><p><strong>03 &nbsp; Watch your voice.</strong>The graph shows 12 pitch positions and Upper Sa at the octave edge. Colored guides belong to your selected raga; watch where your voice falls beside the target.</p></div><p class="privacy-note">Your microphone is used only during practice. Audio and pitch analysis stay in your browser. Progress is saved on this device. Teacher guidance is based on your measured pitch.</p><button class="primary-button full-width">Let’s practice <span>→</span></button></form></dialog>
+  <dialog id="help-dialog"><form method="dialog"><div class="dialog-heading"><div><p class="eyebrow">WELCOME TO SWARA STUDIO</p><h2>Make space for a note.</h2></div><button class="icon-button" aria-label="Close guide">✕</button></div><div class="help-steps"><p><strong>01 &nbsp; Settle into your shruthi.</strong>Choose a Sa that feels comfortable. G♯3 is the starting point; change it anytime in settings.</p><p><strong>02 &nbsp; Listen, then sing.</strong>Use headphones and a quiet room. Begin practice, allow the microphone, and follow the prompts.</p><p><strong>03 &nbsp; Watch your voice.</strong>During practice, Your note shows the swara you are singing. Open Tools → Sing when you want the full pitch graph.</p></div><p class="privacy-note">Your microphone is used only during practice. Audio and pitch analysis stay in your browser. Progress is saved on this device. Teacher guidance is based on your measured pitch.</p><button class="primary-button full-width">Let’s practice <span>→</span></button></form></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
 </body>
 </html>
