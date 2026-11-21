@@ -1,8 +1,9 @@
-import {RAGAS,PITCH_POSITION_LABELS,midiHz,noteName} from './music.js?v=20261116-13';
+import {RAGAS,PITCH_POSITION_LABELS,midiHz,noteName,detectPitch} from './music.js?v=20261116-13';
 
 export function createTools({sound,getSettings,getNotes,onSettings}){
   const host=document.getElementById('tools-view');
   let mode='see',selectedOffset=0,playingOffset=null,timer=null,requestId=0;
+  let micController=null,micPending=false,listening=false,micFrame=0,lastFrame=0,lastVoice=0,micError='',recentPitches=[];
   const blackPitchClasses=new Set([1,3,6,8,10]);
   const isBlack=midi=>blackPitchClasses.has(((midi%12)+12)%12);
   const position=offset=>((offset%12)+12)%12;
@@ -23,16 +24,81 @@ export function createTools({sound,getSettings,getNotes,onSettings}){
     clearTimeout(timer);timer=null;
     if(playingOffset!==null)sound.stopNotes();
     playingOffset=null;
+    micController?.abort();micController=null;
+    cancelAnimationFrame(micFrame);micFrame=0;
+    if(micPending||listening)sound.releaseMic();
+    micPending=false;listening=false;recentPitches=[];
     host.querySelectorAll('.piano-key.playing').forEach(key=>key.classList.remove('playing'));
     const button=host.querySelector('#tool-stop');
     if(button)button.disabled=true;
   }
-  function ladder(){
-    return `<div class="tool-surface"><div class="tool-surface-heading"><div><h2>See the swara</h2><p>Choose a pitch to see its place above your Sa. Notes in ${RAGAS[getSettings().raga].name} are highlighted.</p></div><button class="secondary-button" id="tool-settings">Change shruthi or raga</button></div><div class="ladder-layout"><div class="pitch-ladder" aria-label="Twelve pitch positions from Sa to Upper Sa">${Array.from({length:13},(_,i)=>12-i).map(offset=>{
+  function liveView(){
+    const rows=Array.from({length:13},(_,i)=>12-i).map(offset=>{
       const inRaga=offset===12||!!ragaNote(offset);
-      const midi=getSettings().base+offset;
-      return `<button type="button" class="ladder-row${inRaga?' in-raga':''}${selectedOffset===offset?' selected':''}" data-ladder="${offset}" aria-pressed="${selectedOffset===offset}" aria-label="${offset===12?'Upper Sa':PITCH_POSITION_LABELS[position(offset)]}, ${noteName(midi)}"><span class="ladder-position">${String(offset).padStart(2,'0')}</span><span class="ladder-line"></span><strong>${offset===12?'Upper Sa':PITCH_POSITION_LABELS[position(offset)]}</strong><small>${noteName(midi)}</small></button>`;
-    }).join('')}</div><div class="ladder-side">${detail(selectedOffset)}<p>Each line is one semitone. The filled markers show swaras in your selected raga; the other positions are visible for comparison.</p><div class="tool-key"><i></i> In this raga <span></span> Other pitch positions</div></div></div></div>`;
+      return `<div class="live-pitch-row${inRaga?' in-raga':''}" data-live-row="${offset}"><span class="live-position">${String(offset).padStart(2,'0')}</span><span class="live-line"></span><strong>${offset===12?'Upper Sa':label(offset)}</strong><span class="live-marker" aria-hidden="true"></span></div>`;
+    }).join('');
+    const state=micPending?'Connecting to microphone…':listening?'Listening for your voice…':micError||'Press Start listening, then sing a steady note.';
+    return `<div class="tool-surface"><div class="tool-surface-heading"><div><h2>Sing and see the swara</h2><p>Sing a note to see its pitch relative to your Sa (${noteName(getSettings().base)}). Green positions belong to ${RAGAS[getSettings().raga].name}.</p></div><button class="secondary-button" id="tool-settings">Change shruthi or raga</button></div><div class="live-toolbar"><button class="primary-button" id="tool-mic" aria-pressed="${micPending||listening}">${micPending?'Cancel listening':listening?'Stop listening':'Start listening'}</button><span id="tool-mic-status" role="status">${state}</span></div><div class="live-pitch-layout"><div class="live-readout"><span class="label">YOU ARE SINGING</span><strong id="tool-live-note" aria-live="polite">—</strong><span id="tool-live-register">Sing to see your swara</span><div class="live-measures"><div><span class="label">YOUR PITCH</span><strong id="tool-live-hz">—</strong></div><div><span class="label">NEAREST PITCH</span><strong id="tool-live-cents">—</strong></div></div><p id="tool-live-raga">The display follows your singing. No note is played here.</p></div><div class="live-scale" role="img" aria-label="Twelve pitch positions from Sa to Upper Sa. The current sung pitch is marked while listening.">${rows}</div></div><p class="tool-caption">The ladder shows each position within one octave. The octave label beside your detected swara tells you when you sing below Sa or above Upper Sa.</p></div>`;
+  }
+  function clearLive(){
+    const note=host.querySelector('#tool-live-note');if(!note)return;
+    note.textContent='—';
+    host.querySelector('#tool-live-register').textContent='Sing to see your swara';
+    host.querySelector('#tool-live-hz').textContent='—';
+    host.querySelector('#tool-live-cents').textContent='—';
+    host.querySelector('#tool-live-raga').textContent='The display follows your singing. No note is played here.';
+    host.querySelectorAll('.live-pitch-row.current').forEach(row=>row.classList.remove('current'));
+  }
+  function showPitch(hz){
+    const exact=12*Math.log2(hz/midiHz(getSettings().base));
+    const nearest=Math.round(exact),pitchClass=position(nearest);
+    const note=ragaNote(nearest),variant=nearest===12?'Upper Sa':note?label(nearest):PITCH_POSITION_LABELS[pitchClass];
+    const octave=nearest<0?'Lower octave':nearest>=12?'Higher octave':'Middle octave';
+    const swaraName=nearest===12?'Upper Sa':nearest<0?'Lower '+variant:nearest>12?'Higher '+variant:variant;
+    const cents=Math.round((exact-nearest)*100);
+    host.querySelector('#tool-live-note').textContent=swaraName;
+    host.querySelector('#tool-live-register').textContent=`${octave} · ${noteName(getSettings().base+nearest)}`;
+    host.querySelector('#tool-live-hz').textContent=`${hz.toFixed(1)} Hz`;
+    host.querySelector('#tool-live-cents').textContent=`${cents>0?'+':''}${cents} cents`;
+    host.querySelector('#tool-live-raga').textContent=note||pitchClass===0?`A swara in ${RAGAS[getSettings().raga].name}.`:`This pitch position is outside ${RAGAS[getSettings().raga].name}.`;
+    host.querySelectorAll('.live-pitch-row.current').forEach(row=>row.classList.remove('current'));
+    const displayOffset=nearest===12?12:pitchClass;
+    host.querySelector(`[data-live-row="${displayOffset}"]`)?.classList.add('current');
+    host.querySelector('#tool-mic-status').textContent='Following your voice';
+  }
+  function followVoice(now){
+    if(!listening||!sound.analyser||host.hidden||mode!=='see')return;
+    if(now-lastFrame>=75){
+      lastFrame=now;
+      const buffer=new Float32Array(sound.analyser.fftSize);
+      sound.analyser.getFloatTimeDomainData(buffer);
+      const found=detectPitch(buffer,sound.ctx.sampleRate);
+      if(found){
+        lastVoice=now;recentPitches.push(found.hz);if(recentPitches.length>5)recentPitches.shift();
+        const sorted=[...recentPitches].sort((a,b)=>a-b);
+        showPitch(sorted[Math.floor(sorted.length/2)]);
+      }else if(now-lastVoice>350){recentPitches=[];clearLive();host.querySelector('#tool-mic-status').textContent='Listening for your voice…';}
+    }
+    micFrame=requestAnimationFrame(followVoice);
+  }
+  async function startMic(){
+    if(micPending||listening){stop();render();return;}
+    stop();micError='';
+    const token=++requestId,controller=new AbortController();
+    micController=controller;micPending=true;render();
+    try{
+      await sound.unlock();
+      if(token!==requestId)return;
+      await sound.microphone(controller.signal);
+      if(token!==requestId||host.hidden||mode!=='see'){sound.releaseMic();return;}
+      micPending=false;listening=true;lastFrame=0;lastVoice=performance.now();render();
+      micFrame=requestAnimationFrame(followVoice);
+    }catch(error){
+      if(token!==requestId||error.name==='AbortError')return;
+      micPending=false;micController=null;sound.releaseMic();
+      micError=error.name==='NotAllowedError'?'Microphone access was declined. Allow access in your browser settings and try again.':error.name==='NotFoundError'?'No microphone was found. Connect one and try again.':error.message||'Microphone could not start. Please try again.';
+      render();
+    }
   }
   function piano(){
     const base=getSettings().base,whiteWidth=58,blackWidth=38;
@@ -54,7 +120,7 @@ export function createTools({sound,getSettings,getNotes,onSettings}){
     return `<div class="tool-surface"><div class="tool-surface-heading"><div><h2>Play the swara</h2><p>Tap any key to hear it for ${getSettings().duration} seconds. Tap it again or use Stop to end the sound.</p></div><button class="secondary-button" id="tool-settings">Change shruthi or raga</button></div><div class="piano-scroll" role="group" aria-label="Piano from lower Pa through middle Sa to higher Pa"><div class="piano-registers" style="width:${width}px">${rangeLabels}</div><div class="piano" style="width:${width}px">${keys}</div></div><div class="piano-footer">${detail(selectedOffset)}<button class="secondary-button" id="tool-stop" ${playingOffset===null?'disabled':''}>Stop playing ■</button></div><p class="tool-caption">All twelve pitch positions are playable. Green keys belong to ${RAGAS[getSettings().raga].name}; your Sa is ${noteName(base)}. Playback time follows Practice settings.</p></div>`;
   }
   function render(){
-    host.innerHTML=`<p class="eyebrow">SWARA TOOLS</p><h1 class="progress-intro">Explore every pitch.</h1><p class="page-description">See where a swara sits, then hear it on a keyboard set to your shruthi.</p><div class="tool-tabs" role="tablist" aria-label="Swara tools"><button role="tab" data-tool="see" aria-selected="${mode==='see'}">See the swara</button><button role="tab" data-tool="play" aria-selected="${mode==='play'}">Play the swara</button></div>${mode==='see'?ladder():piano()}`;
+    host.innerHTML=`<p class="eyebrow">SWARA TOOLS</p><h1 class="progress-intro">Explore every pitch.</h1><p class="page-description">Sing to see your pitch, or hear a swara on a keyboard set to your shruthi.</p><div class="tool-tabs" role="tablist" aria-label="Swara tools"><button role="tab" data-tool="see" aria-selected="${mode==='see'}">Sing and see the swara</button><button role="tab" data-tool="play" aria-selected="${mode==='play'}">Play the swara</button></div>${mode==='see'?liveView():piano()}`;
   }
   function reset(){stop();selectedOffset=0;if(!host.hidden)render();}
   async function play(offset){
@@ -72,11 +138,10 @@ export function createTools({sound,getSettings,getNotes,onSettings}){
   }
   host.addEventListener('click',event=>{
     const tab=event.target.closest('[data-tool]');
-    if(tab){if(mode!==tab.dataset.tool){stop();mode=tab.dataset.tool;if(mode==='see'&&(selectedOffset<0||selectedOffset>12))selectedOffset=position(selectedOffset);render();}return;}
+    if(tab){if(mode!==tab.dataset.tool){stop();mode=tab.dataset.tool;render();}return;}
     if(event.target.closest('#tool-settings')){stop();onSettings();return;}
     if(event.target.closest('#tool-stop')){stop();render();return;}
-    const row=event.target.closest('[data-ladder]');
-    if(row){selectedOffset=Number(row.dataset.ladder);render();return;}
+    if(event.target.closest('#tool-mic')){startMic();return;}
     const key=event.target.closest('[data-key]');
     if(key)play(Number(key.dataset.key));
   });
