@@ -1,5 +1,6 @@
-import {RAGA_LIST,RAGAS,midiHz,noteName} from './music.js?v=20261116-13';
+import {RAGAS,midiHz} from './music.js?v=20261116-13';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
+import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-1';
 
 const STORAGE_KEY='swara-studio-custom-session-v1';
 const VOICE_DB='swara-studio-private-voice-v1';
@@ -8,7 +9,6 @@ const VOICE_KEY='aa-bank';
 const FIRST_VOICE_MIDI=54;
 const VOICE_NOTE_SECONDS=3;
 const VOICE_NOTE_COUNT=20;
-const SHRUTHIS=[54,55,56,57,58,59,60,61];
 const digit=letter=>({'₁':'1','₂':'2','₃':'3'})[letter]||letter;
 const sequenceTokens=text=>text.replace(/upper\s+sa/gi,'UpperSa').replace(/[₁₂₃]/g,digit).split(/[\s,;|]+/).filter(Boolean);
 
@@ -54,13 +54,13 @@ export function parseSwaraSequence(text,raga){
   return sequence;
 }
 
-export function createPracticeSession({sound,getSettings}){
+export function createPracticeSession({sound,getSettings,onSelection}){
   const host=document.getElementById('session-view');
   const defaults=()=>({base:getSettings().base,raga:getSettings().raga,tempo:50,notes:'',sound:'piano',source:''});
   let state=defaults();
   try{
     const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
-    if(saved&&SHRUTHIS.includes(saved.base)&&RAGAS[saved.raga]&&Number.isInteger(saved.tempo)&&saved.tempo>=30&&saved.tempo<=180&&typeof saved.notes==='string'&&saved.notes.length<=600){state={...defaults(),...saved};}
+    if(saved&&SHRUTHIS.includes(saved.base)&&RAGAS[saved.raga]&&Number.isInteger(saved.tempo)&&saved.tempo>=30&&saved.tempo<=180&&typeof saved.notes==='string'&&saved.notes.length<=600){state={...defaults(),...saved,base:getSettings().base,raga:getSettings().raga};}
   }catch{}
   let running=false,runId=0,frame=0,micController=null,micActive=false,micBuffer=null,lastMicFrame=0,previousMidi=null;
   let scheduled=[],voiceBuffer=null,voiceReady=false;
@@ -70,10 +70,9 @@ export function createPracticeSession({sound,getSettings}){
   const code=note=>note.offset===12?"S'":note.variant.replace(/[₁₂₃]/g,digit);
 
   function render(){
-    host.innerHTML=`<div class="session-heading"><p class="eyebrow">YOUR PRACTICE SESSION</p><h1>Make a phrase to sing.</h1><p id="session-source" class="session-source" hidden></p></div>
+    host.innerHTML=`<div class="session-heading"><p class="eyebrow">YOUR PRACTICE SESSION</p><h1>Build your own phrases.</h1><p id="session-source" class="session-source" hidden></p></div>
       <div class="session-builder"><div class="session-fields">
-        <label>Base shruthi<select id="session-base">${SHRUTHIS.map(m=>`<option value="${m}">${noteName(m)}</option>`).join('')}</select></label>
-        <label>Raga<select id="session-raga">${RAGA_LIST.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}</select></label>
+        ${selectionFields('session',state)}
         <label>Tempo (BPM)<input id="session-tempo" type="number" min="30" max="180" step="1" inputmode="numeric"></label>
         <label>Sound<select id="session-sound"><option value="piano">Piano</option><option value="voice">My voice</option></select></label>
       </div><label class="session-notes-label" for="session-notes">Swaras</label>
@@ -87,8 +86,8 @@ export function createPracticeSession({sound,getSettings}){
       <p id="session-status" class="session-status" role="status">Listen to each line, then sing it for the same number of beats.</p>
       <div class="session-stage"><div class="session-stage-top"><span class="label">CURRENT SWARA</span><span id="session-count">—</span></div><strong id="session-current">—</strong><div id="session-sequence" class="session-sequence"></div><div class="session-progress"><i id="session-progress-fill"></i></div><p id="session-heard">Your note: —</p></div></div>`;
     $('session-base').value=String(state.base);$('session-raga').value=state.raga;$('session-tempo').value=String(state.tempo);$('session-notes').value=state.notes;$('session-sound').value=state.sound==='voice'?'voice':'piano';
-    $('session-base').onchange=()=>{state.base=Number($('session-base').value);save();refreshPreview();};
-    $('session-raga').onchange=()=>{state.raga=$('session-raga').value;save();renderSwatches();refreshPreview();};
+    $('session-base').onchange=()=>{state.base=Number($('session-base').value);save();refreshPreview();onSelection?.({base:state.base,raga:state.raga});};
+    $('session-raga').onchange=()=>{state.raga=$('session-raga').value;save();renderSwatches();refreshPreview();onSelection?.({base:state.base,raga:state.raga});};
     $('session-tempo').oninput=()=>{state.tempo=Number($('session-tempo').value);save();refreshPreview();};
     $('session-sound').onchange=()=>{state.sound=$('session-sound').value;save();};
     $('session-notes').oninput=()=>{state.notes=$('session-notes').value;state.source='';$('session-source').hidden=true;save();refreshPreview();};
@@ -245,5 +244,13 @@ export function createPracticeSession({sound,getSettings}){
   function loadPattern({base,raga,notes,title}){
     stop();state={...state,base,raga,notes,source:title};save();render();
   }
-  return {render,stop,loadPattern,start};
+  function syncSelection({base,raga}){
+    if(state.base===base&&state.raga===raga)return;
+    state.base=base;state.raga=raga;state.source='';save();
+    if($('session-base')){
+      $('session-base').value=String(base);$('session-raga').value=raga;
+      $('session-source').hidden=true;renderSwatches();refreshPreview();
+    }
+  }
+  return {render,stop,loadPattern,start,syncSelection};
 }

@@ -348,6 +348,19 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 .sarali-source{font-size:10px;color:#879384;margin-top:14px;line-height:1.5}
 @media(max-width:720px){.sarali-panel{padding:17px}.sarali-top{gap:12px}.sarali-top>div{min-width:95px}.sarali-top strong{font-size:17px}.sarali-top button{margin-left:0}.sarali-picker{grid-template-columns:repeat(7,minmax(0,1fr))}.sarali-score{padding:13px}.sarali-bar>span{min-width:24px;font-size:12px}.sarali-score-line{gap:5px}}
 
+/* One shruthi and raga selection is shared by the lessons and tools. */
+.shared-select{display:grid;gap:6px;min-width:0;color:var(--ink);font-size:12px;font-weight:650}
+.shared-select select{width:100%;min-width:0;min-height:39px;border:1px solid #cfd7c9;border-radius:4px;background:#fff;color:var(--ink);padding:9px 11px;font-size:12px}
+.practice-selection{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;align-items:center;flex:1;min-width:310px;padding:9px 15px}
+.session-bar .drone-button{min-height:59px;border-left:1px solid var(--line)}
+.tool-current-settings,.sarali-top{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;width:min(100%,590px)}
+.tool-surface-heading{width:100%}
+@media(max-width:720px){
+  .practice-selection{width:100%;min-width:0;padding:10px 12px}
+  .session-bar .drone-button{min-height:0;border-left:0}
+  .tool-current-settings,.sarali-top{width:100%;gap:10px}
+}
+
 /* Recall keeps the response in the center; the circle fills only for detected singing. */
 .practice-layout.memory-mode{grid-template-columns:minmax(0,1fr);max-width:760px;margin-inline:auto}
 .practice-layout.memory-mode>.pitch-panel{display:none}

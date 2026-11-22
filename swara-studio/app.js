@@ -1,8 +1,9 @@
 import {RAGA_LIST,RAGAS,DEFAULT_RAGA,midiHz,swaraHz as swaraHzFor,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261116-13';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
-import {createTools} from './tools.js?v=20261121-8';
-import {createPracticeSession} from './session.js?v=20261121-7';
-import {createSaraliVarasai} from './sarali.js?v=20261121-1';
+import {createTools} from './tools.js?v=20261122-1';
+import {createPracticeSession} from './session.js?v=20261122-1';
+import {createSaraliVarasai} from './sarali.js?v=20261122-1';
+import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-1';
 const $=id=>document.getElementById(id);
 const sound=new SoundEngine();
 const defaults={base:56,raga:DEFAULT_RAGA,level:'beginner',duration:'3',response:3};
@@ -42,24 +43,29 @@ function setPhase(next,label,time=''){
   $('preview-note').setAttribute('aria-label',next==='reference'?'Stop playing the swaras':`Play the ${targets.length===1?'swara':'swaras'}`);
   $('preview-note').hidden=isMemory()||isIdentification()&&next!=='answer'&&next!=='reference';
   $('answer-controls').hidden=next!=='answer';
-  for(const id of ['settings-open','shruthi-open','raga-open'])$(id).disabled=busy();
+  $('settings-open').disabled=busy();
+  document.querySelectorAll('#practice-selection select').forEach(select=>select.disabled=busy());
   $('preview-note').disabled=busy()&&phase!=='reference'&&phase!=='answer';
 }
 function updateConfig(){
-  $('shruthi-label').textContent=noteName(settings.base);$('shruthi-hz').textContent=midiHz(settings.base).toFixed(2)+' Hz';$('level-tag').textContent=settings.level[0].toUpperCase()+settings.level.slice(1);
-  $('raga-label').textContent=RAGAS[settings.raga].name;$('raga-type').textContent=RAGAS[settings.raga].type;
+  $('practice-selection').innerHTML=selectionFields('practice',settings);
+  $('level-tag').textContent=settings.level[0].toUpperCase()+settings.level.slice(1);
   for(const[id,value]of Object.entries({'shruthi-select':settings.base,'raga-select':settings.raga,'level-select':settings.level,'duration-select':settings.duration,'response-select':settings.response}))$(id).value=String(value);
   updateDaily();
 }
-function selectRaga(id){
-  if(!RAGAS[id]?.notes)return;
-  settings.raga=id;SWARAS=RAGAS[id].notes;
+function setSelection({base,raga}){
+  if(busy()||!SHRUTHIS.includes(base)||!RAGAS[raga]?.notes)return;
+  settings.base=base;settings.raga=raga;SWARAS=RAGAS[raga].notes;
   samples=[];live=null;attempt=1;
+  if(drone)sound.toggleDrone(base,true);
   updateConfig();renderExercise();save();
   if(view==='library')renderLibrary();
   if(view==='progress')renderProgress();
   tools?.reset();
+  session?.syncSelection(settings);
+  sarali?.render();
 }
+function selectRaga(id){setSelection({base:settings.base,raga:id});}
 function chooseExercise(){
   for(let attempt=0;attempt<12;attempt++){
     const notes=SWARAS.map((_,index)=>index);
@@ -269,14 +275,17 @@ function finishResult(result,recording=null){
   else{const d=result.details.find(d=>!d.pass);const note=SWARAS[d.index].name;if(!d.detected)body=`We didn’t hear a sustained ${note} in its response window. Follow the note cue and hold each swara until the next prompt.`;else if(Math.abs(d.cents)>700)body=`Your ${note} landed in a different register from the target. ${isMemory()?'Recall its pitch':'Listen to the octave'}, then try again. Choose a more comfortable base shruthi if needed.`;else if(Math.abs(d.cents)>tolerance())body=`Your ${note} was about ${Math.abs(Math.round(d.cents))} cents ${d.cents>0?'high':'low'}. ${d.cents>0?'Ease down':'Lift gently'} toward the target, then hold it steady.`;else body=`You found ${note}, but it drifted during the hold. ${isMemory()?'Try again':'Listen again'}, keep your breath relaxed, and aim for a steadier line.`;if(attempt>=3)body+=' You’ve given this note three tries. Take a breath or move to a different note.';}
   const heardMisses=isMemory()&&!result.pass?result.details.flatMap((detail,position)=>{
     if(detail.pass||!detail.detected||!Number.isFinite(detail.cents))return [];
-    const hz=swaraHz(settings.base,detail.index)*2**(detail.cents/1200);
-    const reading=livePitchReading(hz,settings.base);
-    return [{position,hz,reading}];
+    const requestedHz=swaraHz(settings.base,detail.index);
+    const sungHz=requestedHz*2**(detail.cents/1200);
+    const reading=livePitchReading(sungHz,settings.base);
+    const note=SWARAS[detail.index];
+    const requestedLabel=note.offset===12?'Upper Sa':note.name+note.variant.slice(1);
+    return [{position,requestedHz,requestedLabel,reading}];
   }):[];
-  const heardMarkup=heardMisses.length?`<div class="recall-heard"><h4>What we heard</h4>${heardMisses.map(({position,reading},index)=>`<div><p>${targets.length>1?`Note ${position+1}: `:''}You sang ${reading.swara} (${reading.western})${reading.tuning==='In tune'?'':` · ${reading.tuning}`}.</p><button type="button" class="secondary-button" data-compare="${index}">Play Sa, then ${reading.swara}</button></div>`).join('')}</div>`:'';
+  const heardMarkup=heardMisses.length?`<div class="recall-heard"><h4>What we heard</h4>${heardMisses.map(({position,reading,requestedLabel},index)=>`<div><p>${targets.length>1?`Note ${position+1}: `:''}You sang ${reading.swara} (${reading.western})${reading.tuning==='In tune'?'':` · ${reading.tuning}`}. The note was ${requestedLabel}.</p><button type="button" class="secondary-button" data-compare="${index}">Play Sa, then ${requestedLabel}</button></div>`).join('')}</div>`:'';
   $('exercise-panel').classList.add('show-result');$('exercise-panel').classList.toggle('memory-result',isMemory());$('feedback').hidden=false;$('feedback').innerHTML=`<h3>${heading}</h3><p>${body}</p>${result.identification?'':`<div class="feedback-stat">${result.accuracy}% of detected pitch frames within ±${tolerance()} cents${!result.voiced?' · No reliable voice detected':''}</div>`}<div class="result-notes">${result.details.map(d=>`<span>${SWARAS[d.index].name} · ${d.detected?d.accuracy+'%':'not heard'}${d.stability!==null&&d.stability!==undefined?' · '+Math.round(d.stability)+'¢ variation':''}</span>`).join('')}</div>${heardMarkup}<div class="feedback-actions"><button class="primary-button" id="next-exercise">Next exercise <span>→</span></button><button class="secondary-button" id="retry-exercise">${isMemory()?'Try again':'Listen & retry'}</button>${recording?'<audio controls aria-label="Listen to your recording"></audio>':''}</div>`;
   if(recording)$('feedback').querySelector('audio').src=recording;
-  $('feedback').querySelectorAll('[data-compare]').forEach(button=>button.onclick=()=>playComparison(heardMisses[Number(button.dataset.compare)].hz,button));
+  $('feedback').querySelectorAll('[data-compare]').forEach(button=>button.onclick=()=>playComparison(heardMisses[Number(button.dataset.compare)].requestedHz,button));
   $('next-exercise').onclick=nextExercise;$('retry-exercise').onclick=()=>{attempt++;if(mode==='sing')renderExercise(false);else begin();};
 }
 function nextExercise(){
@@ -313,8 +322,9 @@ function renderLibrary(){
 }
 function syncPath(){document.querySelectorAll('[data-step]').forEach(b=>b.classList.toggle('active',view==='practice'&&Number(b.dataset.step)===step));document.querySelectorAll('[data-mode]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.mode===mode));b.textContent=({sing:'Learn',name:'Sense',memory:'Recall'})[b.dataset.mode];});}
 function openSettings(){if(busy())return;stopComparison();if(view==='tools')tools?.stop();if(view==='session')session?.stop();updateConfig();$('settings-dialog').showModal();}
-for(const id of ['settings-open','shruthi-open','raga-open'])$(id).onclick=openSettings;
-$('settings-dialog').querySelector('form').addEventListener('submit',event=>{if(event.submitter?.value!=='save')return;settings.base=Number($('shruthi-select').value);settings.level=$('level-select').value;settings.duration=$('duration-select').value;settings.response=Number($('response-select').value);if(drone)sound.toggleDrone(settings.base,true);selectRaga($('raga-select').value);if(view==='sarali')sarali?.render();toast('Your practice settings are saved.');});
+$('settings-open').onclick=openSettings;
+$('practice-selection').addEventListener('change',()=>setSelection({base:Number($('practice-base').value),raga:$('practice-raga').value}));
+$('settings-dialog').querySelector('form').addEventListener('submit',event=>{if(event.submitter?.value!=='save')return;settings.level=$('level-select').value;settings.duration=$('duration-select').value;settings.response=Number($('response-select').value);setSelection({base:Number($('shruthi-select').value),raga:$('raga-select').value});toast('Your practice settings are saved.');});
 $('help-open').onclick=()=>$('help-dialog').showModal();
 $('drone-toggle').onclick=async()=>{if(busy()){toast('The drone is paused during pitch evaluation. Try it between exercises.');return;}try{drone=!drone;await sound.toggleDrone(settings.base,drone);updateDroneButton();}catch{drone=false;updateDroneButton();toast('Audio could not start. Try again.');}};
 $('answer-options').onclick=e=>{const b=e.target.closest('[data-answer]');if(b)answer(Number(b.dataset.answer));};
@@ -329,7 +339,7 @@ document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>showView(b.dat
 document.querySelector('.brand').onclick=e=>{e.preventDefault();showView('practice');};
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();stopComparison();tools?.stop();session?.stop();sound.stopDrone();drone=false;updateDroneButton();}});
 window.addEventListener('pagehide',()=>{stopComparison();session?.stop();sound.shutdown();});
-tools=createTools({sound,getSettings:()=>settings,getNotes:()=>SWARAS,onSettings:openSettings});
-session=createPracticeSession({sound,getSettings:()=>settings});
-sarali=createSaraliVarasai({getSettings:()=>settings,onSettings:openSettings,onPractice:pattern=>{session.loadPattern(pattern);showView('session');session.start();}});
+tools=createTools({sound,getSettings:()=>settings,getNotes:()=>SWARAS,onSelection:setSelection});
+session=createPracticeSession({sound,getSettings:()=>settings,onSelection:setSelection});
+sarali=createSaraliVarasai({getSettings:()=>settings,onSelection:setSelection,onPractice:pattern=>{session.loadPattern(pattern);showView('session');session.start();}});
 updateConfig();syncPath();renderExercise();
