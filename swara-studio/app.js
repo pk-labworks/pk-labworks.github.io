@@ -11,7 +11,7 @@ try{const stored=JSON.parse(localStorage.getItem('swara-studio-v1')||'{}');const
 let SWARAS=RAGAS[settings.raga].notes;
 const swaraHz=(base,index)=>swaraHzFor(base,index,SWARAS);
 const scorePitch=(samples,targets,secondsPerNote,base,tolerance)=>scorePitchFor(samples,targets,secondsPerNote,base,tolerance,SWARAS);
-let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,lastLiveVoiceAt=0,totalSeconds=3,previewing=false,tools=null,session=null,sarali=null,previousLiveMidi=null,micBuffer=null;
+let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,lastLiveVoiceAt=0,totalSeconds=3,recallVoicedSeconds=0,previewing=false,comparisonController=null,comparisonButton=null,tools=null,session=null,sarali=null,previousLiveMidi=null,micBuffer=null;
 const titles={1:['THE FOUNDATIONS','One swara at a time.','Listen closely. Sing freely. Let your ear lead the way.'],2:['A STEP FORWARD','One note leads to another.','Hold two sounds in your mind, then find each swara.'],3:['MUSICAL MEMORY','Let three notes become one.','Listen for the shape of a phrase, then respond in order.']};
 const isIdentification=()=>mode==='name';
 const isMemory=()=>mode==='memory';
@@ -74,20 +74,35 @@ function chooseExercise(){
   reference=[...targets];
 }
 function renderExercise(newSequence=true){
+  stopComparison();
   previousLiveMidi=null;live=null;
-  if(newSequence)chooseExercise();totalSeconds=Number(settings.response)*targets.length;const [eyebrow,title,description]=titles[step];$('step-eyebrow').textContent=`STEP 0${step+1} / ${eyebrow}`;$('page-title').textContent=title;$('page-title').classList.toggle('long-title',step>1);$('page-description').textContent=isIdentification()?`You will hear your base Sa, then ${senseCount()}. Name only ${step===1?'the swara':'those swaras in order'} after Sa.`:isMemory()?{1:'See the swara, then find it with your voice.',2:'See two swaras and sing them in order without a reference.',3:'See three swaras and sing them in order without a reference.'}[step]:description;
+  if(newSequence)chooseExercise();totalSeconds=Number(settings.response)*targets.length;const [eyebrow,title,description]=titles[step];$('step-eyebrow').textContent=`STEP 0${step+1} / ${eyebrow}`;$('page-title').textContent=title;$('page-title').classList.toggle('long-title',step>1);$('page-description').textContent=isIdentification()?`You will hear your base Sa, then ${senseCount()}. Name only ${step===1?'the swara':'those swaras in order'} after Sa.`:isMemory()?{1:'Hear Sa, then sing the shown swara.',2:'Hear Sa, then sing the two shown swaras in order.',3:'Hear Sa, then sing the three shown swaras in order.'}[step]:description;
   const concealed=isIdentification();
   const count=targets.length;
   const heading=concealed?'Listen and Name':isMemory()?'Sing from Memory':'Listen and Sing';
   $('exercise-title').textContent=heading;$('exercise-count').textContent=`EXERCISE ${String(exercise).padStart(2,'0')}`;
+  if(isMemory())document.querySelector('.panel-foot').after($('feedback'));
+  else $('exercise-title').after($('feedback'));
   document.querySelector('.practice-layout').classList.toggle('listening-only',concealed);
+  document.querySelector('.practice-layout').classList.toggle('memory-mode',isMemory());
   $('target-name').textContent=concealed?'?':SWARAS[reference[0]].name;
   $('note-kicker').textContent=concealed?'HEAR SA FIRST':isMemory()?'FROM MEMORY':'YOUR REFERENCE';
-  $('target-western').textContent=concealed?senseOrder():isMemory()?'No reference will play.':noteReadout(reference[0]);
+  $('target-western').textContent=concealed?senseOrder():isMemory()?'':noteReadout(reference[0]);
   $('sequence').hidden=count===1&&!concealed;
   $('sequence').innerHTML=targets.map(i=>`<span>${concealed?'?':SWARAS[i].name}</span>`).join('');
-  $('duration-caption').textContent=concealed?`Base Sa + ${count} ${count===1?'swara':'swaras'} · ${referenceDuration()}s each`:isMemory()?`${settings.response}s${count>1?' / note':''} singing · no reference sound`:`${referenceDuration()}s per reference swara · ${settings.response}s${count>1?' / note':''} singing`;
-  $('exercise-panel').classList.remove('show-result');$('answer-options').hidden=true;$('feedback').hidden=true;answers=[];setPhase('idle',idlePrompt());resetReadings();
+  $('duration-caption').textContent=concealed?`Base Sa + ${count} ${count===1?'swara':'swaras'} · ${referenceDuration()}s each`:isMemory()?`Sa plays ${referenceDuration()}s · ${settings.response}s${count>1?' / note':''} singing`:`${referenceDuration()}s per reference swara · ${settings.response}s${count>1?' / note':''} singing`;
+  $('exercise-panel').classList.remove('show-result','memory-result');$('answer-options').hidden=true;$('feedback').hidden=true;answers=[];setPhase('idle',idlePrompt());resetReadings();resetRecallFill();
+}
+function resetRecallFill(){
+  recallVoicedSeconds=0;
+  $('recall-fill-level').style.transform='translateY(100%)';
+  $('recall-fill').setAttribute('aria-valuenow','0');
+}
+function advanceRecallFill(sampleMs){
+  recallVoicedSeconds=Math.min(totalSeconds,recallVoicedSeconds+Math.max(0,Math.min(sampleMs,100))/1000);
+  const percent=Math.round(100*recallVoicedSeconds/totalSeconds);
+  $('recall-fill-level').style.transform=`translateY(${100-percent}%)`;
+  $('recall-fill').setAttribute('aria-valuenow',String(percent));
 }
 function resetReadings(){
   $('detected-note').textContent='—';
@@ -99,6 +114,25 @@ function resetReadings(){
 }
 function wait(ms,signal){return new Promise((resolve,reject)=>{if(signal.aborted)return reject(new DOMException('Cancelled','AbortError'));const cancel=()=>{clearTimeout(timer);reject(new DOMException('Cancelled','AbortError'));};const timer=setTimeout(()=>{signal.removeEventListener('abort',cancel);resolve();},ms);signal.addEventListener('abort',cancel,{once:true});});}
 function throwIfAborted(signal){if(signal.aborted)throw new DOMException('Cancelled','AbortError');}
+function stopComparison(){
+  if(!comparisonController)return;
+  comparisonController.abort();comparisonController=null;sound.stopNotes();
+  if(comparisonButton){comparisonButton.textContent=comparisonButton.dataset.label;comparisonButton=null;}
+}
+async function playComparison(hz,button){
+  if(comparisonButton===button){stopComparison();return;}
+  stopComparison();
+  const current=new AbortController(),signal=current.signal,duration=referenceDuration();
+  comparisonController=current;comparisonButton=button;button.dataset.label=button.textContent;button.textContent='Stop comparison';
+  try{
+    await sound.unlock();throwIfAborted(signal);
+    sound.tone(midiHz(settings.base),duration);
+    await wait(duration*1000,signal);await wait(250,signal);
+    sound.tone(hz,duration);
+    await wait(duration*1000,signal);
+  }catch(error){if(error.name!=='AbortError')toast('The comparison could not play. Try again.');}
+  finally{if(comparisonController===current)stopComparison();}
+}
 async function countDown(seconds,label,signal){const start=performance.now();while(performance.now()-start<seconds*1000){const remaining=Math.ceil(seconds-(performance.now()-start)/1000);$('phase-label').textContent=label;$('phase-time').textContent=`${remaining}s`;await wait(Math.min(100,seconds*1000-(performance.now()-start)),signal);}}
 async function playReferences(indices,signal,conceal=false){
   throwIfAborted(signal);
@@ -148,14 +182,22 @@ async function preview(){
   }finally{previewing=false;}
 }
 async function begin(){
+  stopComparison();
   if(previewing){sound.stopNotes();controller?.abort();previewing=false;setPhase('idle',idlePrompt());}
   else if(busy()){cancelExercise();return;}
-  controller=new AbortController();const signal=controller.signal;samples=[];live=null;previousLiveMidi=null;lastSample=0;lastLiveVoiceAt=0;previewing=false;answers=[];updateAnswerEntry();$('exercise-panel').classList.remove('show-result');$('feedback').hidden=true;$('answer-options').hidden=true;resetReadings();
+  controller=new AbortController();const signal=controller.signal;samples=[];live=null;previousLiveMidi=null;lastSample=0;lastLiveVoiceAt=0;previewing=false;answers=[];updateAnswerEntry();$('exercise-panel').classList.remove('show-result','memory-result');$('feedback').hidden=true;$('answer-options').hidden=true;resetReadings();resetRecallFill();
   try{
     setPhase('preparing',isIdentification()?'Preparing the reference.':'Waiting for microphone access…');await sound.unlock();throwIfAborted(signal);
     if(drone){sound.stopDrone();drone=false;updateDroneButton();}
     if(!isIdentification()){await sound.microphone(signal);if(signal.aborted)return;sound.analyser.fftSize=4096;sound.analyser.smoothingTimeConstant=0;micBuffer=new Float32Array(sound.analyser.fftSize);}
     if(isIdentification()){await playReferences(reference,signal,true);setPhase('answer',answerPrompt());$('answer-options').hidden=false;$('answer-options').innerHTML=SWARAS.map((s,i)=>`<button data-answer="${i}">${s.name}</button>`).join('');updateAnswerEntry();return;}
+    if(isMemory()){
+      $('note-kicker').textContent='BASE SA';
+      await playReferences([0],signal);
+      throwIfAborted(signal);
+      $('target-name').textContent=SWARAS[targets[0]].name;
+      $('target-western').textContent='';
+    }
     setPhase('recording',`Sing ${SWARAS[targets[0]].name}.`);$('note-kicker').textContent=isMemory()?'SING FROM MEMORY':'YOUR TURN TO SING';sound.startRecording();recordStart=performance.now();
     captureFrame();await wait(totalSeconds*1000,signal);cancelAnimationFrame(animation);animation=0;
     const recording=await sound.finishRecording();sound.releaseMic();
@@ -166,13 +208,14 @@ function captureFrame(){
   if(phase!=='recording'||!sound.analyser)return;
   const now=performance.now(),t=(now-recordStart)/1000;const current=Math.min(targets.length-1,Math.floor(t/settings.response));
   if(now-lastSample>=50){
+    const sampleMs=lastSample?now-lastSample:Math.min(now-recordStart,50);
     lastSample=now;sound.analyser.getFloatTimeDomainData(micBuffer);
     const frequency=detectLivePitch(micBuffer,sound.ctx.sampleRate);
-    if(frequency){live={hz:frequency};lastLiveVoiceAt=now;updateLive();}
-    else if(now-lastLiveVoiceAt>700){live=null;updateLive();}
+    if(frequency){live={hz:frequency};lastLiveVoiceAt=now;if(isMemory())advanceRecallFill(sampleMs);else updateLive();}
+    else if(now-lastLiveVoiceAt>700){live=null;if(!isMemory())updateLive();}
     samples.push({t,hz:frequency||null,index:targets[current]});
   }
-  $('target-name').textContent=SWARAS[targets[current]].name;$('target-western').textContent=noteReadout(targets[current]);
+  $('target-name').textContent=SWARAS[targets[current]].name;$('target-western').textContent=isMemory()?'':noteReadout(targets[current]);
   $('phase-label').textContent=`Sing ${SWARAS[targets[current]].name}${targets.length>1?` · note ${current+1} of ${targets.length}`:''}.`;$('phase-time').textContent=`${Math.max(0,Math.ceil(totalSeconds-t))}s`;
   [...$('sequence').children].forEach((el,i)=>el.classList.toggle('current',current===i));animation=requestAnimationFrame(captureFrame);
 }
@@ -187,7 +230,7 @@ function updateLive(){
   $('detected-cents').textContent=reading.tuning;
   $('practice-tuning-dot').style.left=`${reading.tuningPosition}%`;
 }
-function cancelExercise(){controller?.abort();cancelAnimationFrame(animation);sound.stopNotes();sound.finishRecording();sound.releaseMic();previewing=false;setPhase('idle',idlePrompt());$('answer-options').hidden=true;resetReadings();}
+function cancelExercise(){controller?.abort();stopComparison();cancelAnimationFrame(animation);sound.stopNotes();sound.finishRecording();sound.releaseMic();previewing=false;setPhase('idle',idlePrompt());$('answer-options').hidden=true;resetReadings();resetRecallFill();}
 function answer(index){
   if(phase!=='answer'||answers.length>=targets.length)return;
   answers.push(index);
@@ -222,10 +265,18 @@ function finishResult(result,recording=null){
     body=result.pass?`You named ${names} in the right order.`:`The sequence was ${names}. You named ${heard}. Replay it, then try again.`;
   }
   else if(!result.voiced)body=`We didn’t hear enough of a steady note to evaluate. Move a little closer to your microphone and sing a comfortable, sustained vowel.${isMemory()?' Try the named swara again.':' Play the swara again if you need a reminder.'}`;
-  else if(result.pass)body=isMemory()?`You found ${targets.map(i=>SWARAS[i].name).join(' · ')} without hearing a reference. Keep that sound in mind for the next exercise.`:targets.length===1?`You held ${SWARAS[targets[0]].name} close to the reference. Keep your breath easy and aim for the same steady sound on your next note.`:'You found the notes in this phrase. Keep listening for smooth, deliberate transitions as the sequence becomes familiar.';
+  else if(result.pass)body=isMemory()?`You found ${targets.map(i=>SWARAS[i].name).join(' · ')} after hearing base Sa. Keep that sound in mind for the next exercise.`:targets.length===1?`You held ${SWARAS[targets[0]].name} close to the reference. Keep your breath easy and aim for the same steady sound on your next note.`:'You found the notes in this phrase. Keep listening for smooth, deliberate transitions as the sequence becomes familiar.';
   else{const d=result.details.find(d=>!d.pass);const note=SWARAS[d.index].name;if(!d.detected)body=`We didn’t hear a sustained ${note} in its response window. Follow the note cue and hold each swara until the next prompt.`;else if(Math.abs(d.cents)>700)body=`Your ${note} landed in a different register from the target. ${isMemory()?'Recall its pitch':'Listen to the octave'}, then try again. Choose a more comfortable base shruthi if needed.`;else if(Math.abs(d.cents)>tolerance())body=`Your ${note} was about ${Math.abs(Math.round(d.cents))} cents ${d.cents>0?'high':'low'}. ${d.cents>0?'Ease down':'Lift gently'} toward the target, then hold it steady.`;else body=`You found ${note}, but it drifted during the hold. ${isMemory()?'Try again':'Listen again'}, keep your breath relaxed, and aim for a steadier line.`;if(attempt>=3)body+=' You’ve given this note three tries. Take a breath or move to a different note.';}
-  $('exercise-panel').classList.add('show-result');$('feedback').hidden=false;$('feedback').innerHTML=`<h3>${heading}</h3><p>${body}</p>${result.identification?'':`<div class="feedback-stat">${result.accuracy}% of detected pitch frames within ±${tolerance()} cents${!result.voiced?' · No reliable voice detected':''}</div>`}<div class="result-notes">${result.details.map(d=>`<span>${SWARAS[d.index].name} · ${d.detected?d.accuracy+'%':'not heard'}${d.stability!==null&&d.stability!==undefined?' · '+Math.round(d.stability)+'¢ variation':''}</span>`).join('')}</div><div class="feedback-actions"><button class="primary-button" id="next-exercise">Next exercise <span>→</span></button><button class="secondary-button" id="retry-exercise">${isMemory()?'Try again':'Listen & retry'}</button>${recording?'<audio controls aria-label="Listen to your recording"></audio>':''}</div>`;
+  const heardMisses=isMemory()&&!result.pass?result.details.flatMap((detail,position)=>{
+    if(detail.pass||!detail.detected||!Number.isFinite(detail.cents))return [];
+    const hz=swaraHz(settings.base,detail.index)*2**(detail.cents/1200);
+    const reading=livePitchReading(hz,settings.base);
+    return [{position,hz,reading}];
+  }):[];
+  const heardMarkup=heardMisses.length?`<div class="recall-heard"><h4>What we heard</h4>${heardMisses.map(({position,reading},index)=>`<div><p>${targets.length>1?`Note ${position+1}: `:''}You sang ${reading.swara} (${reading.western})${reading.tuning==='In tune'?'':` · ${reading.tuning}`}.</p><button type="button" class="secondary-button" data-compare="${index}">Play Sa, then ${reading.swara}</button></div>`).join('')}</div>`:'';
+  $('exercise-panel').classList.add('show-result');$('exercise-panel').classList.toggle('memory-result',isMemory());$('feedback').hidden=false;$('feedback').innerHTML=`<h3>${heading}</h3><p>${body}</p>${result.identification?'':`<div class="feedback-stat">${result.accuracy}% of detected pitch frames within ±${tolerance()} cents${!result.voiced?' · No reliable voice detected':''}</div>`}<div class="result-notes">${result.details.map(d=>`<span>${SWARAS[d.index].name} · ${d.detected?d.accuracy+'%':'not heard'}${d.stability!==null&&d.stability!==undefined?' · '+Math.round(d.stability)+'¢ variation':''}</span>`).join('')}</div>${heardMarkup}<div class="feedback-actions"><button class="primary-button" id="next-exercise">Next exercise <span>→</span></button><button class="secondary-button" id="retry-exercise">${isMemory()?'Try again':'Listen & retry'}</button>${recording?'<audio controls aria-label="Listen to your recording"></audio>':''}</div>`;
   if(recording)$('feedback').querySelector('audio').src=recording;
+  $('feedback').querySelectorAll('[data-compare]').forEach(button=>button.onclick=()=>playComparison(heardMisses[Number(button.dataset.compare)].hz,button));
   $('next-exercise').onclick=nextExercise;$('retry-exercise').onclick=()=>{attempt++;if(mode==='sing')renderExercise(false);else begin();};
 }
 function nextExercise(){
@@ -234,7 +285,7 @@ function nextExercise(){
 }
 function updateDaily(){const today=new Date().toDateString();const n=history.filter(h=>new Date(h.time).toDateString()===today).length;$('today-count').innerHTML=`${n} <span>/ 8</span>`;$('goal-ring').style.strokeDashoffset=String(125.67*(1-Math.min(n/8,1)));}
 function updateDroneButton(){$('drone-toggle').setAttribute('aria-pressed',String(drone));$('drone-status').textContent=drone?'On':'Off';}
-function showView(next){if(view!==next){if(busy())cancelExercise();if(view==='tools')tools?.stop();if(view==='session')session?.stop();sound.stopNotes();if((next==='tools'||next==='session'||next==='sarali')&&drone){sound.stopDrone();drone=false;updateDroneButton();}}view=next;document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==`${next}-view`);document.querySelectorAll('[data-view]').forEach(el=>{el.classList.toggle('active',el.dataset.view===next);el.setAttribute('aria-current',el.dataset.view===next?'page':'false');});syncPath();if(next==='progress')renderProgress();if(next==='library')renderLibrary();if(next==='tools')tools?.render();if(next==='sarali')sarali?.render();}
+function showView(next){if(view!==next){if(busy())cancelExercise();if(view==='practice')stopComparison();if(view==='tools')tools?.stop();if(view==='session')session?.stop();sound.stopNotes();if((next==='tools'||next==='session'||next==='sarali')&&drone){sound.stopDrone();drone=false;updateDroneButton();}}view=next;document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==`${next}-view`);document.querySelectorAll('[data-view]').forEach(el=>{el.classList.toggle('active',el.dataset.view===next);el.setAttribute('aria-current',el.dataset.view===next?'page':'false');});syncPath();if(next==='progress')renderProgress();if(next==='library')renderLibrary();if(next==='tools')tools?.render();if(next==='sarali')sarali?.render();}
 function renderProgress(){
   const ragaHistory=history.filter(entry=>(entry.raga||DEFAULT_RAGA)===settings.raga&&entry.notes.every(note=>note.index<SWARAS.length));
   const count=ragaHistory.length,avg=count?Math.round(ragaHistory.reduce((s,h)=>s+h.accuracy,0)/count):0;const dates=new Set(ragaHistory.map(h=>new Date(h.time).toDateString()));
@@ -261,7 +312,7 @@ function renderLibrary(){
   $('library-view').querySelectorAll('[data-library-note]').forEach(b=>b.onclick=async()=>{await sound.unlock();sound.stopNotes();sound.tone(swaraHz(settings.base,Number(b.dataset.libraryNote)),referenceDuration());});
 }
 function syncPath(){document.querySelectorAll('[data-step]').forEach(b=>b.classList.toggle('active',view==='practice'&&Number(b.dataset.step)===step));document.querySelectorAll('[data-mode]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.mode===mode));b.textContent=({sing:'Learn',name:'Sense',memory:'Recall'})[b.dataset.mode];});}
-function openSettings(){if(busy())return;if(view==='tools')tools?.stop();if(view==='session')session?.stop();updateConfig();$('settings-dialog').showModal();}
+function openSettings(){if(busy())return;stopComparison();if(view==='tools')tools?.stop();if(view==='session')session?.stop();updateConfig();$('settings-dialog').showModal();}
 for(const id of ['settings-open','shruthi-open','raga-open'])$(id).onclick=openSettings;
 $('settings-dialog').querySelector('form').addEventListener('submit',event=>{if(event.submitter?.value!=='save')return;settings.base=Number($('shruthi-select').value);settings.level=$('level-select').value;settings.duration=$('duration-select').value;settings.response=Number($('response-select').value);if(drone)sound.toggleDrone(settings.base,true);selectRaga($('raga-select').value);if(view==='sarali')sarali?.render();toast('Your practice settings are saved.');});
 $('help-open').onclick=()=>$('help-dialog').showModal();
@@ -276,8 +327,8 @@ const tabs=[...document.querySelectorAll('[data-mode]')];tabs.forEach((b,i)=>{b.
 document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{cancelExercise();step=Number(b.dataset.step);mode='sing';attempt=1;samples=[];syncPath();renderExercise();showView('practice');});
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>showView(b.dataset.view));
 document.querySelector('.brand').onclick=e=>{e.preventDefault();showView('practice');};
-document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();tools?.stop();session?.stop();sound.stopDrone();drone=false;updateDroneButton();}});
-window.addEventListener('pagehide',()=>{session?.stop();sound.shutdown();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();stopComparison();tools?.stop();session?.stop();sound.stopDrone();drone=false;updateDroneButton();}});
+window.addEventListener('pagehide',()=>{stopComparison();session?.stop();sound.shutdown();});
 tools=createTools({sound,getSettings:()=>settings,getNotes:()=>SWARAS,onSettings:openSettings});
 session=createPracticeSession({sound,getSettings:()=>settings});
 sarali=createSaraliVarasai({getSettings:()=>settings,onSettings:openSettings,onPractice:pattern=>{session.loadPattern(pattern);showView('session');session.start();}});
