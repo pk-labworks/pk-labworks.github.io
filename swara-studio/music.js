@@ -25,6 +25,15 @@ export const midiHz = midi => 440 * 2 ** ((midi-69)/12);
 export const centsBetween = (hz, target) => 1200*Math.log2(hz/target);
 export const noteName = midi => ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][((Math.round(midi)%12)+12)%12] + (Math.floor(Math.round(midi)/12)-1);
 export const swaraHz = (base,index,notes=RAGAS[DEFAULT_RAGA].notes) => midiHz(base+notes[index].offset);
+const NOTE_DB='swara-studio-recorded-notes-v1';
+function noteDatabase(){
+  return new Promise((resolve,reject)=>{
+    const request=indexedDB.open(NOTE_DB,1);
+    request.onupgradeneeded=()=>request.result.createObjectStore('notes');
+    request.onsuccess=()=>resolve(request.result);
+    request.onerror=()=>reject(request.error);
+  });
+}
 export function nearestSwara(hz,base,notes=RAGAS[DEFAULT_RAGA].notes){
   const position=12*Math.log2(hz/midiHz(base));
   let best={index:0,cents:Infinity,octave:0};
@@ -79,8 +88,45 @@ export function scorePitch(samples,targets,secondsPerNote,base,tolerance,notes=R
   return {details,accuracy,pass:details.every(d=>d.pass),voiced:details.some(d=>d.detected)};
 }
 export class SoundEngine{
-  constructor(){this.ctx=null;this.nodes=new Set();this.drone=[];this.stream=null;this.recorder=null;this.chunks=[];this.source=null;this.analyser=null;this.recordUrl=null;}
+  constructor(){this.ctx=null;this.nodes=new Set();this.drone=[];this.stream=null;this.recorder=null;this.chunks=[];this.source=null;this.analyser=null;this.recordUrl=null;this.referenceSound='piano';this.voiceNotes=new Map();}
   async unlock(){this.ctx??=new (window.AudioContext||window.webkitAudioContext)();if(this.ctx.state!=='running')await this.ctx.resume();}
+  async loadVoiceNotes(){
+    const db=await noteDatabase();
+    let entries;
+    try{entries=await new Promise((resolve,reject)=>{
+      const request=db.transaction('notes','readonly').objectStore('notes').openCursor(),found=[];
+      request.onsuccess=()=>{const cursor=request.result;if(cursor){found.push([String(cursor.key),cursor.value]);cursor.continue();}else resolve(found);};
+      request.onerror=()=>reject(request.error);
+    });}finally{db.close();}
+    this.ctx??=new (window.AudioContext||window.webkitAudioContext)();
+    for(const [key,blob] of entries){try{this.voiceNotes.set(key,await this.ctx.decodeAudioData(await blob.arrayBuffer()));}catch{}}
+  }
+  async saveVoiceNote(midi,variant,blob){
+    this.ctx??=new (window.AudioContext||window.webkitAudioContext)();
+    const buffer=await this.ctx.decodeAudioData(await blob.arrayBuffer());
+    if(buffer.duration<1)throw new Error('The recording was too short. Please try again.');
+    const db=await noteDatabase();
+    try{await new Promise((resolve,reject)=>{
+      const tx=db.transaction('notes','readwrite');tx.objectStore('notes').put(blob,`${midi}:${variant}`);
+      tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+    });}finally{db.close();}
+    this.voiceNotes.set(`${midi}:${variant}`,buffer);
+  }
+  voiceNote(midi,variant){return this.voiceNotes.get(`${midi}:${variant}`)||null;}
+  hasVoiceNote(midi,variant){return this.voiceNotes.has(`${midi}:${variant}`);}
+  reference(midi,duration,variant='S',volume=.19){
+    const buffer=this.referenceSound==='voice'?this.voiceNote(midi,variant):null;
+    if(!buffer){this.tone(midiHz(midi),duration,volume);return;}
+    const ctx=this.ctx,now=ctx.currentTime,source=ctx.createBufferSource(),gain=ctx.createGain();
+    source.buffer=buffer;
+    if(buffer.duration<duration+.25){source.loop=true;source.loopStart=Math.min(.45,buffer.duration*.2);source.loopEnd=Math.max(source.loopStart+.2,buffer.duration-.25);}
+    source.connect(gain);gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(.55,now+.05);
+    gain.gain.setValueAtTime(.55,now+Math.max(.06,duration-.08));gain.gain.linearRampToValueAtTime(0,now+duration);
+    const entry={master:gain,nodes:[source]};this.nodes.add(entry);
+    source.onended=()=>{try{source.disconnect();gain.disconnect();}catch{}this.nodes.delete(entry);};
+    source.start(now,Math.min(.08,buffer.duration*.02));source.stop(now+duration+.01);
+  }
   tone(hz,duration,volume=.19){
     const ctx=this.ctx,now=ctx.currentTime, master=ctx.createGain();master.connect(ctx.destination);
     const nodes=[];
@@ -117,12 +163,12 @@ export class SoundEngine{
     this.stream=stream;this.source=this.ctx.createMediaStreamSource(this.stream);this.analyser=this.ctx.createAnalyser();this.analyser.fftSize=2048;this.source.connect(this.analyser);
   }
   startRecording(){
-    this.chunks=[];this.recordingEnded=Promise.resolve(null);
+    const chunks=[];this.chunks=chunks;this.recordingEnded=Promise.resolve(null);
     if(!this.stream||!window.MediaRecorder)return;
     const preferred=['audio/webm;codecs=opus','audio/mp4','audio/webm'].find(t=>MediaRecorder.isTypeSupported(t));
     try{this.recorder=new MediaRecorder(this.stream,preferred?{mimeType:preferred}:undefined);}catch{return;}
     const recorder=this.recorder;
-    this.recordingEnded=new Promise(resolve=>{recorder.ondataavailable=e=>{if(e.data.size)this.chunks.push(e.data);};recorder.onstop=()=>{if(this.recordUrl)URL.revokeObjectURL(this.recordUrl);const blob=new Blob(this.chunks,{type:recorder.mimeType});this.recordUrl=blob.size?URL.createObjectURL(blob):null;resolve(this.recordUrl);};});
+    this.recordingEnded=new Promise(resolve=>{recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};recorder.onstop=()=>{if(this.recordUrl)URL.revokeObjectURL(this.recordUrl);const blob=new Blob(chunks,{type:recorder.mimeType});this.recordUrl=blob.size?URL.createObjectURL(blob):null;resolve(this.recordUrl);};});
     recorder.start();
   }
   async finishRecording(){if(this.recorder?.state==='recording')this.recorder.stop();return this.recordingEnded;}

@@ -1,6 +1,6 @@
-import {RAGAS,PITCH_POSITION_LABELS,midiHz,noteName} from './music.js?v=20261116-13';
+import {RAGAS,PITCH_POSITION_LABELS,midiHz,noteName} from './music.js?v=20261122-7';
 import {LIVE_SWARAS,LIVE_WINDOW_MS,LIVE_GRAPH_FRAME_MS,detectLivePitch,livePitchReading,drawLiveTrace} from './swara-live-core.js?v=20261121-1';
-import {selectionFields} from './selection.js?v=20261122-1';
+import {selectionFields} from './selection.js?v=20261122-7';
 
 export function createTools({sound,getSettings,getNotes,onSelection}){
   const host=document.getElementById('tools-view');

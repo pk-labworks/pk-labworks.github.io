@@ -1,5 +1,5 @@
-import {RAGAS} from './music.js?v=20261116-13';
-import {selectionFields} from './selection.js?v=20261122-1';
+import {RAGAS} from './music.js?v=20261122-7';
+import {selectionFields} from './selection.js?v=20261122-7';
 
 // The source lesson uses seven scale degrees. Missing degrees become holds so
 // five-note ragas keep the same eight-beat Aadi taalam shape.
