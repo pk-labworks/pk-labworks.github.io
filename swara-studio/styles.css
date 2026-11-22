@@ -334,6 +334,11 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 .sarali-top button{margin-left:auto}
 .sarali-scale{font:14px var(--mono);color:#5c7659;margin:15px 0 9px}
 .sarali-instruction{font-size:12px;color:#6b7a66;margin-bottom:19px}
+.sarali-tempo-label{display:grid;gap:5px;width:145px;margin-bottom:18px;font-size:11px;font-weight:700;color:#4b6748}
+.sarali-tempo-label input{height:38px;border:1px solid #cbd7c5;border-radius:4px;padding:0 10px;background:#fff;color:#294b2c}
+.sarali-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.sarali-score-line.current{background:#eaf3e4;border-radius:4px}
+.sarali-panel>.session-progress{max-width:550px;margin-top:12px}
 .sarali-picker{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:5px;margin:0 0 22px}
 .sarali-picker button{height:34px;border:1px solid #cbd7c5;border-radius:4px;background:#f2f5ed;color:#53704f;font:11px var(--mono)}
 .sarali-picker button[aria-pressed=true]{background:var(--green);border-color:var(--green);color:#fff;font-weight:700}

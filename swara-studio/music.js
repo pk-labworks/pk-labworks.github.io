@@ -25,14 +25,14 @@ export const midiHz = midi => 440 * 2 ** ((midi-69)/12);
 export const centsBetween = (hz, target) => 1200*Math.log2(hz/target);
 export const noteName = midi => ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][((Math.round(midi)%12)+12)%12] + (Math.floor(Math.round(midi)/12)-1);
 export const swaraHz = (base,index,notes=RAGAS[DEFAULT_RAGA].notes) => midiHz(base+notes[index].offset);
-export const SPOKEN_SWARAS=['Sa','Ri','Ga','Ma','Pa','Da','Ni'];
-const SYLLABLE_BY_INITIAL={S:'Sa',R:'Ri',G:'Ga',M:'Ma',P:'Pa',D:'Da',N:'Ni'};
-export const voiceSyllable=variant=>SYLLABLE_BY_INITIAL[variant?.[0]]||null;
-const NOTE_DB='swara-studio-recorded-notes-v1';
-function noteDatabase(){
+export const VOICE_BANK_FIRST_MIDI=48;
+export const VOICE_BANK_LAST_MIDI=84;
+export const VOICE_BANK_NOTE_SECONDS=3;
+const VOICE_DB='swara-studio-private-aaa-v2';
+function voiceDatabase(){
   return new Promise((resolve,reject)=>{
-    const request=indexedDB.open(NOTE_DB,1);
-    request.onupgradeneeded=()=>request.result.createObjectStore('notes');
+    const request=indexedDB.open(VOICE_DB,1);
+    request.onupgradeneeded=()=>request.result.createObjectStore('audio');
     request.onsuccess=()=>resolve(request.result);
     request.onerror=()=>reject(request.error);
   });
@@ -91,85 +91,59 @@ export function scorePitch(samples,targets,secondsPerNote,base,tolerance,notes=R
   return {details,accuracy,pass:details.every(d=>d.pass),voiced:details.some(d=>d.detected)};
 }
 export class SoundEngine{
-  constructor(){this.ctx=null;this.nodes=new Set();this.drone=[];this.stream=null;this.recorder=null;this.chunks=[];this.source=null;this.analyser=null;this.recordUrl=null;this.referenceSound='piano';this.voiceNotes=new Map();}
+  constructor(){this.ctx=null;this.nodes=new Set();this.drone=[];this.stream=null;this.recorder=null;this.chunks=[];this.source=null;this.analyser=null;this.recordUrl=null;this.referenceSound='piano';this.voiceBank=null;}
   async unlock(){this.ctx??=new (window.AudioContext||window.webkitAudioContext)();if(this.ctx.state!=='running')await this.ctx.resume();}
-  async loadVoiceNotes(){
-    const db=await noteDatabase();
-    let entries;
-    try{entries=await new Promise((resolve,reject)=>{
-      const request=db.transaction('notes','readonly').objectStore('notes').openCursor(),found=[];
-      request.onsuccess=()=>{const cursor=request.result;if(cursor){found.push([String(cursor.key),cursor.value]);cursor.continue();}else resolve(found);};
-      request.onerror=()=>reject(request.error);
-    });}finally{db.close();}
+  async importVoiceBank(file){
     this.ctx??=new (window.AudioContext||window.webkitAudioContext)();
-    for(const [key,value] of entries){
-      try{
-        const modern=key.startsWith('voice:'),blob=modern?value.blob:value;
-        const syllable=modern?key.slice(6):voiceSyllable(key.split(':')[1]);
-        if(!SPOKEN_SWARAS.includes(syllable))continue;
-        const buffer=await this.ctx.decodeAudioData(await blob.arrayBuffer());
-        const sourceHz=modern?value.sourceHz:midiHz(Number(key.split(':')[0]));
-        const startAt=modern?value.startAt:0;
-        const loopStart=modern?value.loopStart:Math.min(.45,buffer.duration*.2);
-        const loopEnd=modern?value.loopEnd:Math.max(loopStart+.2,buffer.duration-.25);
-        if(Number.isFinite(sourceHz)&&sourceHz>0)this.voiceNotes.set(syllable,{buffer,sourceHz,startAt,loopStart,loopEnd});
-      }catch{}
-    }
+    const buffer=await this.ctx.decodeAudioData(await file.arrayBuffer());
+    const expected=(VOICE_BANK_LAST_MIDI-VOICE_BANK_FIRST_MIDI+1)*VOICE_BANK_NOTE_SECONDS;
+    if(buffer.numberOfChannels!==1||Math.abs(buffer.duration-expected)>.15)throw new Error('Choose the private 111-second swara-aaa-bank.wav file.');
+    this.voiceBank=buffer;
+    try{
+      const db=await voiceDatabase();
+      try{await new Promise((resolve,reject)=>{const tx=db.transaction('audio','readwrite');tx.objectStore('audio').put(file,'bank');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}
+      finally{db.close();}
+      return true;
+    }catch{return false;}
   }
-  async saveVoiceNote(syllable,blob,sourceHz,voicedWindow){
-    if(!SPOKEN_SWARAS.includes(syllable)||!Number.isFinite(sourceHz)||sourceHz<60||sourceHz>1100)throw new Error('Could not find a clear speaking pitch. Please say the swara again.');
+  async loadVoiceBank(){
+    const db=await voiceDatabase();
+    let file;
+    try{file=await new Promise((resolve,reject)=>{const request=db.transaction('audio','readonly').objectStore('audio').get('bank');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
+    finally{db.close();}
+    if(!file)return false;
     this.ctx??=new (window.AudioContext||window.webkitAudioContext)();
-    const buffer=await this.ctx.decodeAudioData(await blob.arrayBuffer());
-    if(buffer.duration<.4)throw new Error('The recording was too short. Please say the swara again.');
-    const clamp=(value,low,high)=>Math.max(low,Math.min(high,value));
-    const startAt=clamp(voicedWindow.start-.12,0,buffer.duration-.35);
-    let loopStart=clamp(voicedWindow.start+.1,startAt+.08,buffer.duration-.25);
-    let loopEnd=clamp(voicedWindow.end-.05,loopStart+.15,buffer.duration-.04);
-    const channel=buffer.getChannelData(0),rate=buffer.sampleRate;
-    const snap=time=>{
-      const center=Math.round(time*rate),radius=Math.round(rate*.008);
-      let best=center,distance=Infinity;
-      for(let i=Math.max(1,center-radius);i<Math.min(channel.length-1,center+radius);i++){
-        if(channel[i]<=0&&channel[i+1]>0&&Math.abs(i-center)<distance){best=i;distance=Math.abs(i-center);}
-      }
-      return best/rate;
-    };
-    loopStart=snap(loopStart);loopEnd=snap(loopEnd);
-    if(loopEnd-loopStart<.12)loopEnd=Math.min(buffer.duration-.02,loopStart+.15);
-    const saved={blob,sourceHz,startAt,loopStart,loopEnd};
-    const db=await noteDatabase();
-    try{await new Promise((resolve,reject)=>{
-      const tx=db.transaction('notes','readwrite');tx.objectStore('notes').put(saved,`voice:${syllable}`);
-      tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
-    });}finally{db.close();}
-    this.voiceNotes.set(syllable,{buffer,sourceHz,startAt,loopStart,loopEnd});
+    this.voiceBank=await this.ctx.decodeAudioData(await file.arrayBuffer());
+    return true;
   }
-  voiceNote(variant){return this.voiceNotes.get(voiceSyllable(variant))||null;}
-  hasVoiceNote(syllable){return this.voiceNotes.has(syllable);}
-  reference(midi,duration,variant='S',volume=.19){
-    const recording=this.referenceSound==='voice'?this.voiceNote(variant):null;
-    if(!recording){this.tone(midiHz(midi),duration,volume);return;}
-    const ctx=this.ctx,now=ctx.currentTime,source=ctx.createBufferSource(),gain=ctx.createGain();
-    source.buffer=recording.buffer;source.playbackRate.value=midiHz(midi)/recording.sourceHz;
-    source.loop=true;source.loopStart=recording.loopStart;source.loopEnd=recording.loopEnd;
+  hasVoiceBank(){return Boolean(this.voiceBank);}
+  scheduleReference(midi,when,duration,volume=.19,choice=this.referenceSound){
+    if(choice!=='voice'||!this.voiceBank||midi<VOICE_BANK_FIRST_MIDI||midi>VOICE_BANK_LAST_MIDI)return this.scheduleTone(midiHz(midi),when,duration,volume);
+    const ctx=this.ctx,source=ctx.createBufferSource(),gain=ctx.createGain(),offset=(midi-VOICE_BANK_FIRST_MIDI)*VOICE_BANK_NOTE_SECONDS;
+    source.buffer=this.voiceBank;
+    if(duration>VOICE_BANK_NOTE_SECONDS){source.loop=true;source.loopStart=offset+.15;source.loopEnd=offset+VOICE_BANK_NOTE_SECONDS-.15;}
     source.connect(gain);gain.connect(ctx.destination);
-    gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(.55,now+.05);
-    gain.gain.setValueAtTime(.55,now+Math.max(.06,duration-.08));gain.gain.linearRampToValueAtTime(0,now+duration);
+    gain.gain.setValueAtTime(0,when);gain.gain.linearRampToValueAtTime(.56,when+.045);
+    gain.gain.setValueAtTime(.56,when+Math.max(.05,duration-.08));gain.gain.linearRampToValueAtTime(0,when+duration);
     const entry={master:gain,nodes:[source]};this.nodes.add(entry);
     source.onended=()=>{try{source.disconnect();gain.disconnect();}catch{}this.nodes.delete(entry);};
-    source.start(now,recording.startAt);source.stop(now+duration+.01);
+    source.start(when,offset+.02);source.stop(when+duration+.01);
+    return entry;
   }
-  tone(hz,duration,volume=.19){
-    const ctx=this.ctx,now=ctx.currentTime, master=ctx.createGain();master.connect(ctx.destination);
+  reference(midi,duration,variant='S',volume=.19){return this.scheduleReference(midi,this.ctx.currentTime,duration,volume);}
+  tone(hz,duration,volume=.19){return this.scheduleTone(hz,this.ctx.currentTime,duration,volume);}
+  scheduleTone(hz,when,duration,volume=.19){
+    const ctx=this.ctx,master=ctx.createGain();master.connect(ctx.destination);
     const nodes=[];
     const harmonics=[1,.31,.14,.06];
-    harmonics.forEach((amplitude,h)=>{const osc=ctx.createOscillator(),gain=ctx.createGain();osc.frequency.value=hz*(h+1);osc.type='sine';gain.gain.value=amplitude/harmonics.reduce((s,x)=>s+x,0);osc.connect(gain);gain.connect(master);osc.start(now);osc.stop(now+duration+.09);nodes.push(osc,gain);});
-    master.gain.setValueAtTime(0,now);master.gain.linearRampToValueAtTime(volume,now+.035);
-    master.gain.exponentialRampToValueAtTime(volume*.55,now+Math.min(duration*.5,1));
-    master.gain.setValueAtTime(volume*.55,now+duration-.04);
-    master.gain.linearRampToValueAtTime(0,now+duration+.06);
+    harmonics.forEach((amplitude,h)=>{const osc=ctx.createOscillator(),gain=ctx.createGain();osc.frequency.value=hz*(h+1);osc.type='sine';gain.gain.value=amplitude/harmonics.reduce((s,x)=>s+x,0);osc.connect(gain);gain.connect(master);osc.start(when);osc.stop(when+duration+.09);nodes.push(osc,gain);});
+    master.gain.setValueAtTime(0,when);master.gain.linearRampToValueAtTime(volume,when+.035);
+    master.gain.exponentialRampToValueAtTime(volume*.55,when+Math.min(duration*.5,1));
+    master.gain.setValueAtTime(volume*.55,when+duration-.04);
+    master.gain.linearRampToValueAtTime(0,when+duration+.06);
     const entry={master,nodes};this.nodes.add(entry);
     nodes[0].onended=()=>{master.disconnect();nodes.forEach(n=>n.disconnect());this.nodes.delete(entry);};
+    return entry;
   }
   stopNotes(){for(const {nodes,master}of this.nodes){try{master.gain.cancelScheduledValues(this.ctx.currentTime);master.gain.setTargetAtTime(0,this.ctx.currentTime,.015);for(const n of nodes)if(n.stop)n.stop(this.ctx.currentTime+.06);}catch{}}}
   async toggleDrone(base,on){
