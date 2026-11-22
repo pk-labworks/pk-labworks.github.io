@@ -25,6 +25,9 @@ export const midiHz = midi => 440 * 2 ** ((midi-69)/12);
 export const centsBetween = (hz, target) => 1200*Math.log2(hz/target);
 export const noteName = midi => ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][((Math.round(midi)%12)+12)%12] + (Math.floor(Math.round(midi)/12)-1);
 export const swaraHz = (base,index,notes=RAGAS[DEFAULT_RAGA].notes) => midiHz(base+notes[index].offset);
+export const SPOKEN_SWARAS=['Sa','Ri','Ga','Ma','Pa','Da','Ni'];
+const SYLLABLE_BY_INITIAL={S:'Sa',R:'Ri',G:'Ga',M:'Ma',P:'Pa',D:'Da',N:'Ni'};
+export const voiceSyllable=variant=>SYLLABLE_BY_INITIAL[variant?.[0]]||null;
 const NOTE_DB='swara-studio-recorded-notes-v1';
 function noteDatabase(){
   return new Promise((resolve,reject)=>{
@@ -99,33 +102,62 @@ export class SoundEngine{
       request.onerror=()=>reject(request.error);
     });}finally{db.close();}
     this.ctx??=new (window.AudioContext||window.webkitAudioContext)();
-    for(const [key,blob] of entries){try{this.voiceNotes.set(key,await this.ctx.decodeAudioData(await blob.arrayBuffer()));}catch{}}
+    for(const [key,value] of entries){
+      try{
+        const modern=key.startsWith('voice:'),blob=modern?value.blob:value;
+        const syllable=modern?key.slice(6):voiceSyllable(key.split(':')[1]);
+        if(!SPOKEN_SWARAS.includes(syllable))continue;
+        const buffer=await this.ctx.decodeAudioData(await blob.arrayBuffer());
+        const sourceHz=modern?value.sourceHz:midiHz(Number(key.split(':')[0]));
+        const startAt=modern?value.startAt:0;
+        const loopStart=modern?value.loopStart:Math.min(.45,buffer.duration*.2);
+        const loopEnd=modern?value.loopEnd:Math.max(loopStart+.2,buffer.duration-.25);
+        if(Number.isFinite(sourceHz)&&sourceHz>0)this.voiceNotes.set(syllable,{buffer,sourceHz,startAt,loopStart,loopEnd});
+      }catch{}
+    }
   }
-  async saveVoiceNote(midi,variant,blob){
+  async saveVoiceNote(syllable,blob,sourceHz,voicedWindow){
+    if(!SPOKEN_SWARAS.includes(syllable)||!Number.isFinite(sourceHz)||sourceHz<60||sourceHz>1100)throw new Error('Could not find a clear speaking pitch. Please say the swara again.');
     this.ctx??=new (window.AudioContext||window.webkitAudioContext)();
     const buffer=await this.ctx.decodeAudioData(await blob.arrayBuffer());
-    if(buffer.duration<1)throw new Error('The recording was too short. Please try again.');
+    if(buffer.duration<.4)throw new Error('The recording was too short. Please say the swara again.');
+    const clamp=(value,low,high)=>Math.max(low,Math.min(high,value));
+    const startAt=clamp(voicedWindow.start-.12,0,buffer.duration-.35);
+    let loopStart=clamp(voicedWindow.start+.1,startAt+.08,buffer.duration-.25);
+    let loopEnd=clamp(voicedWindow.end-.05,loopStart+.15,buffer.duration-.04);
+    const channel=buffer.getChannelData(0),rate=buffer.sampleRate;
+    const snap=time=>{
+      const center=Math.round(time*rate),radius=Math.round(rate*.008);
+      let best=center,distance=Infinity;
+      for(let i=Math.max(1,center-radius);i<Math.min(channel.length-1,center+radius);i++){
+        if(channel[i]<=0&&channel[i+1]>0&&Math.abs(i-center)<distance){best=i;distance=Math.abs(i-center);}
+      }
+      return best/rate;
+    };
+    loopStart=snap(loopStart);loopEnd=snap(loopEnd);
+    if(loopEnd-loopStart<.12)loopEnd=Math.min(buffer.duration-.02,loopStart+.15);
+    const saved={blob,sourceHz,startAt,loopStart,loopEnd};
     const db=await noteDatabase();
     try{await new Promise((resolve,reject)=>{
-      const tx=db.transaction('notes','readwrite');tx.objectStore('notes').put(blob,`${midi}:${variant}`);
+      const tx=db.transaction('notes','readwrite');tx.objectStore('notes').put(saved,`voice:${syllable}`);
       tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
     });}finally{db.close();}
-    this.voiceNotes.set(`${midi}:${variant}`,buffer);
+    this.voiceNotes.set(syllable,{buffer,sourceHz,startAt,loopStart,loopEnd});
   }
-  voiceNote(midi,variant){return this.voiceNotes.get(`${midi}:${variant}`)||null;}
-  hasVoiceNote(midi,variant){return this.voiceNotes.has(`${midi}:${variant}`);}
+  voiceNote(variant){return this.voiceNotes.get(voiceSyllable(variant))||null;}
+  hasVoiceNote(syllable){return this.voiceNotes.has(syllable);}
   reference(midi,duration,variant='S',volume=.19){
-    const buffer=this.referenceSound==='voice'?this.voiceNote(midi,variant):null;
-    if(!buffer){this.tone(midiHz(midi),duration,volume);return;}
+    const recording=this.referenceSound==='voice'?this.voiceNote(variant):null;
+    if(!recording){this.tone(midiHz(midi),duration,volume);return;}
     const ctx=this.ctx,now=ctx.currentTime,source=ctx.createBufferSource(),gain=ctx.createGain();
-    source.buffer=buffer;
-    if(buffer.duration<duration+.25){source.loop=true;source.loopStart=Math.min(.45,buffer.duration*.2);source.loopEnd=Math.max(source.loopStart+.2,buffer.duration-.25);}
+    source.buffer=recording.buffer;source.playbackRate.value=midiHz(midi)/recording.sourceHz;
+    source.loop=true;source.loopStart=recording.loopStart;source.loopEnd=recording.loopEnd;
     source.connect(gain);gain.connect(ctx.destination);
     gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(.55,now+.05);
     gain.gain.setValueAtTime(.55,now+Math.max(.06,duration-.08));gain.gain.linearRampToValueAtTime(0,now+duration);
     const entry={master:gain,nodes:[source]};this.nodes.add(entry);
     source.onended=()=>{try{source.disconnect();gain.disconnect();}catch{}this.nodes.delete(entry);};
-    source.start(now,Math.min(.08,buffer.duration*.02));source.stop(now+duration+.01);
+    source.start(now,recording.startAt);source.stop(now+duration+.01);
   }
   tone(hz,duration,volume=.19){
     const ctx=this.ctx,now=ctx.currentTime, master=ctx.createGain();master.connect(ctx.destination);

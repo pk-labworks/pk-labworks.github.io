@@ -1,6 +1,6 @@
-import {RAGAS,midiHz} from './music.js?v=20261122-7';
+import {RAGAS,midiHz} from './music.js?v=20261122-8';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
-import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-7';
+import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
 
 const STORAGE_KEY='swara-studio-custom-session-v1';
 const VOICE_DB='swara-studio-private-voice-v1';
@@ -189,10 +189,10 @@ export function createPracticeSession({sound,getSettings,onSelection}){
         cursor+=lineDuration*2+.5;
       });
       const scheduleNote=(midi,variant,when,duration)=>{
-        const useVoiceFile=state.sound==='voice'&&midi>=FIRST_VOICE_MIDI&&midi<FIRST_VOICE_MIDI+VOICE_NOTE_COUNT,recordedBuffer=state.sound==='recordings'?sound.voiceNote(midi,variant):null;
-        const source=useVoiceFile||recordedBuffer?ctx.createBufferSource():ctx.createOscillator(),gain=ctx.createGain();
+        const useVoiceFile=state.sound==='voice'&&midi>=FIRST_VOICE_MIDI&&midi<FIRST_VOICE_MIDI+VOICE_NOTE_COUNT,recordedVoice=state.sound==='recordings'?sound.voiceNote(variant):null;
+        const source=useVoiceFile||recordedVoice?ctx.createBufferSource():ctx.createOscillator(),gain=ctx.createGain();
         if(useVoiceFile)source.buffer=voiceBuffer;
-        else if(recordedBuffer)source.buffer=recordedBuffer;
+        else if(recordedVoice){source.buffer=recordedVoice.buffer;source.playbackRate.value=midiHz(midi)/recordedVoice.sourceHz;}
         else{source.type='triangle';source.frequency.setValueAtTime(midiHz(midi),when);}
         source.connect(gain);gain.connect(ctx.destination);
         gain.gain.setValueAtTime(0,when);gain.gain.linearRampToValueAtTime(.9,when+.025);
@@ -201,10 +201,9 @@ export function createPracticeSession({sound,getSettings,onSelection}){
           const offset=(midi-FIRST_VOICE_MIDI)*VOICE_NOTE_SECONDS+.12;
           if(duration>VOICE_NOTE_SECONDS-.2){source.loop=true;source.loopStart=offset;source.loopEnd=offset+VOICE_NOTE_SECONDS-.24;}
           source.start(when,offset);source.stop(when+duration);
-        }else if(recordedBuffer){
-          const offset=Math.min(.08,recordedBuffer.duration*.02);
-          if(duration>recordedBuffer.duration-offset-.15){source.loop=true;source.loopStart=Math.min(.45,recordedBuffer.duration*.2);source.loopEnd=Math.max(source.loopStart+.2,recordedBuffer.duration-.25);}
-          source.start(when,offset);source.stop(when+duration);
+        }else if(recordedVoice){
+          source.loop=true;source.loopStart=recordedVoice.loopStart;source.loopEnd=recordedVoice.loopEnd;
+          source.start(when,recordedVoice.startAt);source.stop(when+duration);
         }else{source.start(when);source.stop(when+duration);}
         scheduled.push({source,gain});source.onended=()=>{try{source.disconnect();gain.disconnect();}catch{}};
       };

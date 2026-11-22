@@ -1,10 +1,10 @@
-import {RAGA_LIST,RAGAS,DEFAULT_RAGA,swaraHz as swaraHzFor,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261122-7';
+import {RAGA_LIST,RAGAS,DEFAULT_RAGA,swaraHz as swaraHzFor,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261122-8';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
-import {createTools} from './tools.js?v=20261122-7';
-import {createPracticeSession} from './session.js?v=20261122-7';
-import {createSaraliVarasai} from './sarali.js?v=20261122-7';
-import {createGettingStarted} from './getting-started.js?v=20261122-7';
-import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-7';
+import {createTools} from './tools.js?v=20261122-8';
+import {createPracticeSession} from './session.js?v=20261122-8';
+import {createSaraliVarasai} from './sarali.js?v=20261122-8';
+import {createGettingStarted} from './getting-started.js?v=20261122-8';
+import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
 const $=id=>document.getElementById(id);
 const sound=new SoundEngine();
 const defaults={base:56,raga:DEFAULT_RAGA,level:'beginner',duration:'3',response:3,sound:'piano'};
