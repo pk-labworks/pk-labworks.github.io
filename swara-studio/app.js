@@ -23,6 +23,7 @@ const senseOrder=()=>`Base Sa → ${senseCount()}`;
 const busy=()=>!['idle','result'].includes(phase);
 const tolerance=()=>({beginner:35,intermediate:25,advanced:15})[settings.level];
 const noteReadout=index=>`${SWARAS[index].variant} · ${noteName(settings.base+SWARAS[index].offset)} · ${swaraHz(settings.base,index).toFixed(2)} Hz`;
+const swaraLabel=index=>SWARAS[index].offset===12?'Upper Sa':SWARAS[index].name+SWARAS[index].variant.slice(1);
 function save(){try{localStorage.setItem('swara-studio-v1',JSON.stringify({settings,history:history.slice(-500)}));}catch{toast('Device storage is unavailable. This session will remain open, but progress may not be saved.');}}
 let toastTimer;
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,5500);}
@@ -37,7 +38,7 @@ function setPhase(next,label,time=''){
   $('note-stage').classList.toggle('recording',next==='recording');
   $('begin').innerHTML=busy()
     ?'<span>Stop practice</span><span aria-hidden="true">■</span>'
-    :`<span>${isIdentification()?'Listen':'Sing'}</span><span aria-hidden="true">→</span>`;
+    :`<span>${isIdentification()?'Listen':isMemory()?`Hear Sa and sing ${targets.length===1?'note':'notes'}`:'Sing'}</span><span aria-hidden="true">→</span>`;
   const playLabel=next==='reference'?'Stop':'Play';
   $('preview-note').querySelector('span').textContent=playLabel;
   $('preview-note').setAttribute('aria-label',next==='reference'?'Stop playing the swaras':`Play the ${targets.length===1?'swara':'swaras'}`);
@@ -273,19 +274,16 @@ function finishResult(result,recording=null){
   else if(!result.voiced)body=`We didn’t hear enough of a steady note to evaluate. Move a little closer to your microphone and sing a comfortable, sustained vowel.${isMemory()?' Try the named swara again.':' Play the swara again if you need a reminder.'}`;
   else if(result.pass)body=isMemory()?`You found ${targets.map(i=>SWARAS[i].name).join(' · ')} after hearing base Sa. Keep that sound in mind for the next exercise.`:targets.length===1?`You held ${SWARAS[targets[0]].name} close to the reference. Keep your breath easy and aim for the same steady sound on your next note.`:'You found the notes in this phrase. Keep listening for smooth, deliberate transitions as the sequence becomes familiar.';
   else{const d=result.details.find(d=>!d.pass);const note=SWARAS[d.index].name;if(!d.detected)body=`We didn’t hear a sustained ${note} in its response window. Follow the note cue and hold each swara until the next prompt.`;else if(Math.abs(d.cents)>700)body=`Your ${note} landed in a different register from the target. ${isMemory()?'Recall its pitch':'Listen to the octave'}, then try again. Choose a more comfortable base shruthi if needed.`;else if(Math.abs(d.cents)>tolerance())body=`Your ${note} was about ${Math.abs(Math.round(d.cents))} cents ${d.cents>0?'high':'low'}. ${d.cents>0?'Ease down':'Lift gently'} toward the target, then hold it steady.`;else body=`You found ${note}, but it drifted during the hold. ${isMemory()?'Try again':'Listen again'}, keep your breath relaxed, and aim for a steadier line.`;if(attempt>=3)body+=' You’ve given this note three tries. Take a breath or move to a different note.';}
-  const heardMisses=isMemory()&&!result.pass?result.details.flatMap((detail,position)=>{
-    if(detail.pass||!detail.detected||!Number.isFinite(detail.cents))return [];
-    const requestedHz=swaraHz(settings.base,detail.index);
-    const sungHz=requestedHz*2**(detail.cents/1200);
-    const reading=livePitchReading(sungHz,settings.base);
-    const note=SWARAS[detail.index];
-    const requestedLabel=note.offset===12?'Upper Sa':note.name+note.variant.slice(1);
-    return [{position,requestedHz,requestedLabel,reading}];
-  }):[];
-  const heardMarkup=heardMisses.length?`<div class="recall-heard"><h4>What we heard</h4>${heardMisses.map(({position,reading,requestedLabel},index)=>`<div><p>${targets.length>1?`Note ${position+1}: `:''}You sang ${reading.swara} (${reading.western})${reading.tuning==='In tune'?'':` · ${reading.tuning}`}. The note was ${requestedLabel}.</p><button type="button" class="secondary-button" data-compare="${index}">Play Sa, then ${requestedLabel}</button></div>`).join('')}</div>`:'';
-  $('exercise-panel').classList.add('show-result');$('exercise-panel').classList.toggle('memory-result',isMemory());$('feedback').hidden=false;$('feedback').innerHTML=`<h3>${heading}</h3><p>${body}</p>${result.identification?'':`<div class="feedback-stat">${result.accuracy}% of detected pitch frames within ±${tolerance()} cents${!result.voiced?' · No reliable voice detected':''}</div>`}<div class="result-notes">${result.details.map(d=>`<span>${SWARAS[d.index].name} · ${d.detected?d.accuracy+'%':'not heard'}${d.stability!==null&&d.stability!==undefined?' · '+Math.round(d.stability)+'¢ variation':''}</span>`).join('')}</div>${heardMarkup}<div class="feedback-actions"><button class="primary-button" id="next-exercise">Next exercise <span>→</span></button><button class="secondary-button" id="retry-exercise">${isMemory()?'Try again':'Listen & retry'}</button>${recording?'<audio controls aria-label="Listen to your recording"></audio>':''}</div>`;
+  const recallMarkup=isMemory()?`<div class="recall-heard"><h4>Hear the ${targets.length===1?'note':'notes'}</h4>${result.details.map((detail,position)=>{
+    const label=swaraLabel(detail.index);
+    const missed=!detail.pass&&detail.detected&&Number.isFinite(detail.cents);
+    const reading=missed?livePitchReading(swaraHz(settings.base,detail.index)*2**(detail.cents/1200),settings.base):null;
+    const message=reading?`You sang ${reading.swara} (${reading.western})${reading.tuning==='In tune'?'':` · ${reading.tuning}`}. The note was ${label}.`:label;
+    return `<div><p>${targets.length>1?`Note ${position+1}: `:''}${message}</p><button type="button" class="secondary-button" data-compare="${position}">Play Sa, then ${label}</button></div>`;
+  }).join('')}</div>`:'';
+  $('exercise-panel').classList.add('show-result');$('exercise-panel').classList.toggle('memory-result',isMemory());$('feedback').hidden=false;$('feedback').innerHTML=`<h3>${heading}</h3><p>${body}</p>${result.identification?'':`<div class="feedback-stat">${result.accuracy}% of detected pitch frames within ±${tolerance()} cents${!result.voiced?' · No reliable voice detected':''}</div>`}<div class="result-notes">${result.details.map(d=>`<span>${SWARAS[d.index].name} · ${d.detected?d.accuracy+'%':'not heard'}${d.stability!==null&&d.stability!==undefined?' · '+Math.round(d.stability)+'¢ variation':''}</span>`).join('')}</div>${recallMarkup}<div class="feedback-actions"><button class="primary-button" id="next-exercise">Next exercise <span>→</span></button><button class="secondary-button" id="retry-exercise">${isMemory()?'Try again':'Listen & retry'}</button>${recording?'<audio controls aria-label="Listen to your recording"></audio>':''}</div>`;
   if(recording)$('feedback').querySelector('audio').src=recording;
-  $('feedback').querySelectorAll('[data-compare]').forEach(button=>button.onclick=()=>playComparison(heardMisses[Number(button.dataset.compare)].requestedHz,button));
+  $('feedback').querySelectorAll('[data-compare]').forEach(button=>button.onclick=()=>playComparison(swaraHz(settings.base,result.details[Number(button.dataset.compare)].index),button));
   $('next-exercise').onclick=nextExercise;$('retry-exercise').onclick=()=>{attempt++;if(mode==='sing')renderExercise(false);else begin();};
 }
 function nextExercise(){
