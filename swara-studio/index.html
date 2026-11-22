@@ -7,8 +7,8 @@
   <meta name="description" content="Practice Carnatic swaras, develop your ear, and see your singing in real time. A personal music practice studio.">
   <title>Swara Studio — Listen. Sing. Find your pitch.</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20261121-9">
-  <script type="module" src="app.js?v=20261121-10"></script>
+  <link rel="stylesheet" href="styles.css?v=20261121-14">
+  <script type="module" src="app.js?v=20261121-15"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to practice</a>
@@ -21,11 +21,12 @@
       <button class="nav-item" data-view="library"><span class="nav-icon">♮</span> Swara library</button>
       <button class="nav-item" data-view="tools"><span class="nav-icon">♬</span> Tools</button>
     </nav>
-    <div class="path-heading"><span class="side-label">THE LEARNING PATH</span><span class="tiny-label">01—03</span></div>
+    <div class="path-heading"><span class="side-label">THE LEARNING PATH</span><span class="tiny-label">01—04</span></div>
     <nav class="learning-path" aria-label="Training steps">
       <button class="path-item active" data-step="1"><span class="path-number">01</span><span>Individual swaras</span></button>
       <button class="path-item" data-step="2"><span class="path-number">02</span><span>Two swaras</span></button>
       <button class="path-item" data-step="3"><span class="path-number">03</span><span>Three swaras</span></button>
+      <button class="path-item" data-view="session"><span class="path-number">04</span><span>Practice phrases</span></button>
     </nav>
     <div class="sidebar-bottom"><div class="small-sound" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><p>A little practice.<br>A deeper connection.</p><button id="help-open" class="text-button">A note before you begin <span>↗</span></button></div>
   </aside>
@@ -61,6 +62,7 @@
         <footer class="page-footer"><span>Built for attentive, unhurried practice.</span><span>Plain swaras · No gamakas</span></footer>
       </section>
       <section id="progress-view" class="view" hidden></section>
+      <section id="session-view" class="view" hidden></section>
       <section id="library-view" class="view" hidden></section>
       <section id="tools-view" class="view" hidden></section>
     </main>

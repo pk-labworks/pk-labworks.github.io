@@ -1,6 +1,7 @@
 import {RAGA_LIST,RAGAS,DEFAULT_RAGA,midiHz,swaraHz as swaraHzFor,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261116-13';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 import {createTools} from './tools.js?v=20261121-8';
+import {createPracticeSession} from './session.js?v=20261121-6';
 const $=id=>document.getElementById(id);
 const sound=new SoundEngine();
 const defaults={base:56,raga:DEFAULT_RAGA,level:'beginner',duration:'3',response:3};
@@ -9,12 +10,14 @@ try{const stored=JSON.parse(localStorage.getItem('swara-studio-v1')||'{}');const
 let SWARAS=RAGAS[settings.raga].notes;
 const swaraHz=(base,index)=>swaraHzFor(base,index,SWARAS);
 const scorePitch=(samples,targets,secondsPerNote,base,tolerance)=>scorePitchFor(samples,targets,secondsPerNote,base,tolerance,SWARAS);
-let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,lastLiveVoiceAt=0,totalSeconds=3,previewing=false,tools=null,previousLiveMidi=null,micBuffer=null;
+let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,lastLiveVoiceAt=0,totalSeconds=3,previewing=false,tools=null,session=null,previousLiveMidi=null,micBuffer=null;
 const titles={1:['THE FOUNDATIONS','One swara at a time.','Listen closely. Sing freely. Let your ear lead the way.'],2:['A STEP FORWARD','One note leads to another.','Hold two sounds in your mind, then find each swara.'],3:['MUSICAL MEMORY','Let three notes become one.','Listen for the shape of a phrase, then respond in order.']};
 const isIdentification=()=>mode==='name';
 const isMemory=()=>mode==='memory';
 const idlePrompt=()=>'';
-const answerPrompt=()=>answers.length===targets.length?'Ready to check your answer.':targets.length===1?'Name the swara you heard.':`Name swara ${answers.length+1} of ${targets.length}.`;
+const answerPrompt=()=>answers.length===targets.length?'Ready to check your answer.':targets.length===1?'Name the swara after Sa.':`Name swara ${answers.length+1} of ${targets.length} after Sa.`;
+const senseCount=()=>({1:'one swara',2:'two swaras',3:'three swaras'})[step];
+const senseOrder=()=>`Base Sa → ${senseCount()}`;
 const busy=()=>!['idle','result'].includes(phase);
 const tolerance=()=>({beginner:35,intermediate:25,advanced:15})[settings.level];
 const noteReadout=index=>`${SWARAS[index].variant} · ${noteName(settings.base+SWARAS[index].offset)} · ${swaraHz(settings.base,index).toFixed(2)} Hz`;
@@ -71,18 +74,18 @@ function chooseExercise(){
 }
 function renderExercise(newSequence=true){
   previousLiveMidi=null;live=null;
-  if(newSequence)chooseExercise();totalSeconds=Number(settings.response)*targets.length;const [eyebrow,title,description]=titles[step];$('step-eyebrow').textContent=`STEP 0${step} / ${eyebrow}`;$('page-title').textContent=title;$('page-title').classList.toggle('long-title',step>1);$('page-description').textContent=isMemory()?{1:'See the swara, then find it with your voice.',2:'See two swaras and sing them in order without a reference.',3:'See three swaras and sing them in order without a reference.'}[step]:description;
+  if(newSequence)chooseExercise();totalSeconds=Number(settings.response)*targets.length;const [eyebrow,title,description]=titles[step];$('step-eyebrow').textContent=`STEP 0${step} / ${eyebrow}`;$('page-title').textContent=title;$('page-title').classList.toggle('long-title',step>1);$('page-description').textContent=isIdentification()?`You will hear your base Sa, then ${senseCount()}. Name only ${step===1?'the swara':'those swaras in order'} after Sa.`:isMemory()?{1:'See the swara, then find it with your voice.',2:'See two swaras and sing them in order without a reference.',3:'See three swaras and sing them in order without a reference.'}[step]:description;
   const concealed=isIdentification();
   const count=targets.length;
   const heading=concealed?'Listen and Name':isMemory()?'Sing from Memory':'Listen and Sing';
   $('exercise-title').textContent=heading;$('exercise-count').textContent=`EXERCISE ${String(exercise).padStart(2,'0')}`;
   document.querySelector('.practice-layout').classList.toggle('listening-only',concealed);
   $('target-name').textContent=concealed?'?':SWARAS[reference[0]].name;
-  $('note-kicker').textContent=concealed?'LISTEN CLOSELY':isMemory()?'FROM MEMORY':'YOUR REFERENCE';
-  $('target-western').textContent=concealed?'Trust your listening.':isMemory()?'No reference will play.':noteReadout(reference[0]);
+  $('note-kicker').textContent=concealed?'HEAR SA FIRST':isMemory()?'FROM MEMORY':'YOUR REFERENCE';
+  $('target-western').textContent=concealed?senseOrder():isMemory()?'No reference will play.':noteReadout(reference[0]);
   $('sequence').hidden=count===1&&!concealed;
   $('sequence').innerHTML=targets.map(i=>`<span>${concealed?'?':SWARAS[i].name}</span>`).join('');
-  $('duration-caption').textContent=concealed?`Anchor Sa + ${referenceDuration()}s per swara · name in order`:isMemory()?`${settings.response}s${count>1?' / note':''} singing · no reference sound`:`${referenceDuration()}s per reference swara · ${settings.response}s${count>1?' / note':''} singing`;
+  $('duration-caption').textContent=concealed?`Base Sa + ${count} ${count===1?'swara':'swaras'} · ${referenceDuration()}s each`:isMemory()?`${settings.response}s${count>1?' / note':''} singing · no reference sound`:`${referenceDuration()}s per reference swara · ${settings.response}s${count>1?' / note':''} singing`;
   $('exercise-panel').classList.remove('show-result');$('answer-options').hidden=true;$('feedback').hidden=true;answers=[];setPhase('idle',idlePrompt());resetReadings();
 }
 function resetReadings(){
@@ -99,15 +102,15 @@ async function countDown(seconds,label,signal){const start=performance.now();whi
 async function playReferences(indices,signal,conceal=false){
   throwIfAborted(signal);
   const duration=referenceDuration();
-  setPhase('reference',conceal?'Listen to anchor Sa.':'Listen to the reference.');
+  setPhase('reference',conceal?'Listen to base Sa.':'Listen to the reference.');
   try{
     if(conceal){
-      $('note-kicker').textContent='ANCHOR SA';$('target-name').textContent='Sa';$('target-western').textContent='Your starting pitch.';
+      $('note-kicker').textContent='BASE SA';$('target-name').textContent='Sa';$('target-western').textContent='Your base note.';
       sound.tone(swaraHz(settings.base,0),duration);
-      await countDown(duration,'Anchor Sa.',signal);
+      await countDown(duration,'Base Sa.',signal);
       await wait(250,signal);
       throwIfAborted(signal);
-      $('note-kicker').textContent='LISTEN CLOSELY';$('target-name').textContent='?';$('target-western').textContent='Trust your listening.';
+      $('note-kicker').textContent='HEAR SA FIRST';$('target-name').textContent='?';$('target-western').textContent=senseOrder();
     }
     for(let n=0;n<indices.length;n++){
       throwIfAborted(signal);
@@ -122,7 +125,7 @@ async function playReferences(indices,signal,conceal=false){
       if(n<indices.length-1)await wait(250,signal);
     }
   }finally{
-    if(conceal&&isIdentification()){$('note-kicker').textContent='LISTEN CLOSELY';$('target-name').textContent='?';$('target-western').textContent='Trust your listening.';}
+    if(conceal&&isIdentification()){$('note-kicker').textContent='HEAR SA FIRST';$('target-name').textContent='?';$('target-western').textContent=senseOrder();}
   }
 }
 async function preview(){
@@ -230,7 +233,7 @@ function nextExercise(){
 }
 function updateDaily(){const today=new Date().toDateString();const n=history.filter(h=>new Date(h.time).toDateString()===today).length;$('today-count').innerHTML=`${n} <span>/ 8</span>`;$('goal-ring').style.strokeDashoffset=String(125.67*(1-Math.min(n/8,1)));}
 function updateDroneButton(){$('drone-toggle').setAttribute('aria-pressed',String(drone));$('drone-status').textContent=drone?'On':'Off';}
-function showView(next){if(view!==next){if(busy())cancelExercise();if(view==='tools')tools?.stop();sound.stopNotes();if(next==='tools'&&drone){sound.stopDrone();drone=false;updateDroneButton();}}view=next;document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==`${next}-view`);document.querySelectorAll('[data-view]').forEach(el=>{el.classList.toggle('active',el.dataset.view===next);el.setAttribute('aria-current',el.dataset.view===next?'page':'false');});if(next==='progress')renderProgress();if(next==='library')renderLibrary();if(next==='tools')tools?.render();}
+function showView(next){if(view!==next){if(busy())cancelExercise();if(view==='tools')tools?.stop();if(view==='session')session?.stop();sound.stopNotes();if((next==='tools'||next==='session')&&drone){sound.stopDrone();drone=false;updateDroneButton();}}view=next;document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==`${next}-view`);document.querySelectorAll('[data-view]').forEach(el=>{el.classList.toggle('active',el.dataset.view===next);el.setAttribute('aria-current',el.dataset.view===next?'page':'false');});syncPath();if(next==='progress')renderProgress();if(next==='library')renderLibrary();if(next==='tools')tools?.render();}
 function renderProgress(){
   const ragaHistory=history.filter(entry=>(entry.raga||DEFAULT_RAGA)===settings.raga&&entry.notes.every(note=>note.index<SWARAS.length));
   const count=ragaHistory.length,avg=count?Math.round(ragaHistory.reduce((s,h)=>s+h.accuracy,0)/count):0;const dates=new Set(ragaHistory.map(h=>new Date(h.time).toDateString()));
@@ -256,8 +259,8 @@ function renderLibrary(){
   $('library-view').querySelectorAll('[data-practice-raga]').forEach(button=>button.onclick=()=>{selectRaga(button.dataset.practiceRaga);showView('practice');});
   $('library-view').querySelectorAll('[data-library-note]').forEach(b=>b.onclick=async()=>{await sound.unlock();sound.stopNotes();sound.tone(swaraHz(settings.base,Number(b.dataset.libraryNote)),referenceDuration());});
 }
-function syncPath(){document.querySelectorAll('[data-step]').forEach(b=>b.classList.toggle('active',Number(b.dataset.step)===step));document.querySelectorAll('[data-mode]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.mode===mode));b.textContent=({sing:'Learn',name:'Sense',memory:'Recall'})[b.dataset.mode];});}
-function openSettings(){if(busy())return;if(view==='tools')tools?.stop();updateConfig();$('settings-dialog').showModal();}
+function syncPath(){document.querySelectorAll('[data-step]').forEach(b=>b.classList.toggle('active',view==='practice'&&Number(b.dataset.step)===step));document.querySelectorAll('[data-mode]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.mode===mode));b.textContent=({sing:'Learn',name:'Sense',memory:'Recall'})[b.dataset.mode];});}
+function openSettings(){if(busy())return;if(view==='tools')tools?.stop();if(view==='session')session?.stop();updateConfig();$('settings-dialog').showModal();}
 for(const id of ['settings-open','shruthi-open','raga-open'])$(id).onclick=openSettings;
 $('settings-dialog').querySelector('form').addEventListener('submit',event=>{if(event.submitter?.value!=='save')return;settings.base=Number($('shruthi-select').value);settings.level=$('level-select').value;settings.duration=$('duration-select').value;settings.response=Number($('response-select').value);if(drone)sound.toggleDrone(settings.base,true);selectRaga($('raga-select').value);toast('Your practice settings are saved.');});
 $('help-open').onclick=()=>$('help-dialog').showModal();
@@ -272,7 +275,8 @@ const tabs=[...document.querySelectorAll('[data-mode]')];tabs.forEach((b,i)=>{b.
 document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{cancelExercise();step=Number(b.dataset.step);mode='sing';attempt=1;samples=[];syncPath();renderExercise();showView('practice');});
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>showView(b.dataset.view));
 document.querySelector('.brand').onclick=e=>{e.preventDefault();showView('practice');};
-document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();tools?.stop();sound.stopDrone();drone=false;updateDroneButton();}});
-window.addEventListener('pagehide',()=>sound.shutdown());
+document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();tools?.stop();session?.stop();sound.stopDrone();drone=false;updateDroneButton();}});
+window.addEventListener('pagehide',()=>{session?.stop();sound.shutdown();});
 tools=createTools({sound,getSettings:()=>settings,getNotes:()=>SWARAS,onSettings:openSettings});
+session=createPracticeSession({sound,getSettings:()=>settings});
 updateConfig();syncPath();renderExercise();
