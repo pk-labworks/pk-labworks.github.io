@@ -1,20 +1,18 @@
-import {RAGA_LIST,RAGAS,DEFAULT_RAGA,swaraHz as swaraHzFor,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261122-9';
+import {RAGA_LIST,RAGAS,DEFAULT_RAGA,swaraHz as swaraHzFor,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261123-1';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 import {createTools} from './tools.js?v=20261122-8';
-import {createPracticeSession} from './session.js?v=20261122-9';
-import {createSaraliVarasai} from './sarali.js?v=20261122-9';
-import {createGettingStarted} from './getting-started.js?v=20261122-9';
+import {createPracticeSession} from './session.js?v=20261123-1';
+import {createSaraliVarasai} from './sarali.js?v=20261123-1';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
 const $=id=>document.getElementById(id);
 const sound=new SoundEngine();
-const defaults={base:56,raga:DEFAULT_RAGA,level:'beginner',duration:'3',response:3,sound:'piano'};
+const defaults={base:56,raga:DEFAULT_RAGA,level:'beginner',duration:'3',response:3};
 let settings={...defaults},history=[];
-try{const stored=JSON.parse(localStorage.getItem('swara-studio-v1')||'{}');const s=stored.settings||{};settings={base:SHRUTHIS.includes(s.base)?s.base:56,raga:RAGAS[s.raga]?.notes?s.raga:DEFAULT_RAGA,level:['beginner','intermediate','advanced'].includes(s.level)?s.level:'beginner',duration:['3','5','10'].includes(s.duration)?s.duration:defaults.duration,response:[3,5,10].includes(Number(s.response))?Number(s.response):defaults.response,sound:s.sound==='voice'?'voice':'piano'};history=Array.isArray(stored.history)?stored.history.filter(h=>Number.isFinite(h.accuracy)&&h.accuracy>=0&&h.accuracy<=100&&Number.isFinite(h.time)&&Number.isInteger(h.step)&&h.step>=1&&h.step<=4&&Array.isArray(h.notes)&&h.notes.every(n=>Number.isInteger(n.index)&&n.index>=0&&n.index<8)).slice(-500):[];}catch{}
-sound.referenceSound=settings.sound;
+try{const stored=JSON.parse(localStorage.getItem('swara-studio-v1')||'{}');const s=stored.settings||{};settings={base:SHRUTHIS.includes(s.base)?s.base:56,raga:RAGAS[s.raga]?.notes?s.raga:DEFAULT_RAGA,level:['beginner','intermediate','advanced'].includes(s.level)?s.level:'beginner',duration:['3','5','10'].includes(s.duration)?s.duration:defaults.duration,response:[3,5,10].includes(Number(s.response))?Number(s.response):defaults.response};history=Array.isArray(stored.history)?stored.history.filter(h=>Number.isFinite(h.accuracy)&&h.accuracy>=0&&h.accuracy<=100&&Number.isFinite(h.time)&&Number.isInteger(h.step)&&h.step>=1&&h.step<=4&&Array.isArray(h.notes)&&h.notes.every(n=>Number.isInteger(n.index)&&n.index>=0&&n.index<8)).slice(-500):[];}catch{}
 let SWARAS=RAGAS[settings.raga].notes;
 const swaraHz=(base,index)=>swaraHzFor(base,index,SWARAS);
 const scorePitch=(samples,targets,secondsPerNote,base,tolerance)=>scorePitchFor(samples,targets,secondsPerNote,base,tolerance,SWARAS);
-let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,lastLiveVoiceAt=0,totalSeconds=3,recallVoicedSeconds=0,previewing=false,comparisonController=null,comparisonButton=null,tools=null,session=null,sarali=null,gettingStarted=null,previousLiveMidi=null,micBuffer=null;
+let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,lastLiveVoiceAt=0,totalSeconds=3,recallVoicedSeconds=0,previewing=false,comparisonController=null,comparisonButton=null,tools=null,session=null,sarali=null,previousLiveMidi=null,micBuffer=null;
 const titles={1:['THE FOUNDATIONS','One swara at a time.','Listen closely. Sing freely. Let your ear lead the way.'],2:['A STEP FORWARD','One note leads to another.','Hold two sounds in your mind, then find each swara.'],3:['MUSICAL MEMORY','Let three notes become one.','Listen for the shape of a phrase, then respond in order.']};
 const isIdentification=()=>mode==='name';
 const isMemory=()=>mode==='memory';
@@ -54,7 +52,7 @@ function updateConfig(){
   $('practice-selection').innerHTML=selectionFields('practice',settings);
   $('shruthi-select').innerHTML=SHRUTHIS.map(midi=>`<option value="${midi}">${noteName(midi)}</option>`).join('');
   $('level-tag').textContent=settings.level[0].toUpperCase()+settings.level.slice(1);
-  for(const[id,value]of Object.entries({'shruthi-select':settings.base,'raga-select':settings.raga,'level-select':settings.level,'duration-select':settings.duration,'response-select':settings.response,'reference-sound-select':settings.sound}))$(id).value=String(value);
+  for(const[id,value]of Object.entries({'shruthi-select':settings.base,'raga-select':settings.raga,'level-select':settings.level,'duration-select':settings.duration,'response-select':settings.response}))$(id).value=String(value);
   updateDaily();
 }
 function setSelection({base,raga}){
@@ -68,13 +66,6 @@ function setSelection({base,raga}){
   tools?.reset();
   session?.syncSelection(settings);
   sarali?.render();
-  gettingStarted?.render();
-}
-function setReferenceSound(value){
-  if(!['piano','voice'].includes(value))return;
-  settings.sound=value;sound.referenceSound=value;save();
-  session?.syncReferenceSound(value);
-  gettingStarted?.render();
 }
 function selectRaga(id){setSelection({base:settings.base,raga:id});}
 function chooseExercise(){
@@ -309,9 +300,8 @@ function showView(next){
     if(view==='tools')tools?.stop();
     if(view==='session')session?.stop();
     if(view==='sarali')sarali?.stop();
-    if(view==='getting-started')gettingStarted?.stop();
     sound.stopNotes();
-    if((next==='tools'||next==='session'||next==='sarali'||next==='getting-started')&&drone){sound.stopDrone();drone=false;updateDroneButton();}
+    if((next==='tools'||next==='session'||next==='sarali')&&drone){sound.stopDrone();drone=false;updateDroneButton();}
   }
   view=next;
   document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==`${next}-view`);
@@ -321,7 +311,6 @@ function showView(next){
   if(next==='library')renderLibrary();
   if(next==='tools')tools?.render();
   if(next==='sarali')sarali?.render();
-  if(next==='getting-started')gettingStarted?.render();
 }
 function renderProgress(){
   const ragaHistory=history.filter(entry=>(entry.raga||DEFAULT_RAGA)===settings.raga&&entry.notes.every(note=>note.index<SWARAS.length));
@@ -349,10 +338,10 @@ function renderLibrary(){
   $('library-view').querySelectorAll('[data-library-note]').forEach(b=>b.onclick=async()=>{await sound.unlock();sound.stopNotes();const note=SWARAS[Number(b.dataset.libraryNote)];sound.reference(settings.base+note.offset,referenceDuration(),note.variant);});
 }
 function syncPath(){document.querySelectorAll('[data-step]').forEach(b=>b.classList.toggle('active',view==='practice'&&Number(b.dataset.step)===step));document.querySelectorAll('[data-mode]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.mode===mode));b.textContent=({sing:'Learn',name:'Sense',memory:'Recall'})[b.dataset.mode];});}
-function openSettings(){if(busy())return;stopComparison();if(view==='tools')tools?.stop();if(view==='session')session?.stop();if(view==='sarali')sarali?.stop();if(view==='getting-started'){gettingStarted?.stop();gettingStarted?.render();}updateConfig();$('settings-dialog').showModal();}
+function openSettings(){if(busy())return;stopComparison();if(view==='tools')tools?.stop();if(view==='session')session?.stop();if(view==='sarali')sarali?.stop();updateConfig();$('settings-dialog').showModal();}
 $('settings-open').onclick=openSettings;
 $('practice-selection').addEventListener('change',()=>setSelection({base:Number($('practice-base').value),raga:$('practice-raga').value}));
-$('settings-dialog').querySelector('form').addEventListener('submit',event=>{if(event.submitter?.value!=='save')return;settings.level=$('level-select').value;settings.duration=$('duration-select').value;settings.response=Number($('response-select').value);setReferenceSound($('reference-sound-select').value);setSelection({base:Number($('shruthi-select').value),raga:$('raga-select').value});toast('Your practice settings are saved.');});
+$('settings-dialog').querySelector('form').addEventListener('submit',event=>{if(event.submitter?.value!=='save')return;settings.level=$('level-select').value;settings.duration=$('duration-select').value;settings.response=Number($('response-select').value);setSelection({base:Number($('shruthi-select').value),raga:$('raga-select').value});toast('Your practice settings are saved.');});
 $('help-open').onclick=()=>$('help-dialog').showModal();
 $('drone-toggle').onclick=async()=>{if(busy()){toast('The drone is paused during pitch evaluation. Try it between exercises.');return;}try{drone=!drone;await sound.toggleDrone(settings.base,drone);updateDroneButton();}catch{drone=false;updateDroneButton();toast('Audio could not start. Try again.');}};
 $('answer-options').onclick=e=>{const b=e.target.closest('[data-answer]');if(b)answer(Number(b.dataset.answer));};
@@ -366,11 +355,8 @@ document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{cancelExercis
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>showView(b.dataset.view));
 document.querySelector('.brand').onclick=e=>{e.preventDefault();showView('practice');};
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();stopComparison();tools?.stop();session?.stop();sarali?.stop();sound.stopDrone();drone=false;updateDroneButton();}});
-window.addEventListener('pagehide',()=>{stopComparison();session?.stop();sarali?.stop();gettingStarted?.stop();sound.shutdown();});
+window.addEventListener('pagehide',()=>{stopComparison();session?.stop();sarali?.stop();sound.shutdown();});
 tools=createTools({sound,getSettings:()=>settings,getNotes:()=>SWARAS,onSelection:setSelection});
 session=createPracticeSession({sound,getSettings:()=>settings,onSelection:setSelection});
 sarali=createSaraliVarasai({sound,getSettings:()=>settings,onSelection:setSelection});
-gettingStarted=createGettingStarted({sound,getSettings:()=>settings,onSelection:setSelection,onSound:setReferenceSound,onDone:()=>{try{localStorage.setItem('swara-studio-started-v1','yes');}catch{}showView('practice');}});
-sound.loadVoiceBank().then(ready=>{if(!ready&&settings.sound==='voice')setReferenceSound('piano');gettingStarted?.render();}).catch(()=>{if(settings.sound==='voice')setReferenceSound('piano');});
 updateConfig();syncPath();renderExercise();
-try{if(localStorage.getItem('swara-studio-started-v1')!=='yes')showView('getting-started');}catch{showView('getting-started');}

@@ -1,4 +1,4 @@
-import {RAGAS} from './music.js?v=20261122-9';
+import {RAGAS} from './music.js?v=20261123-1';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
 
@@ -32,11 +32,11 @@ export function parseSwaraSequence(text,raga){
 
 export function createPracticeSession({sound,getSettings,onSelection}){
   const host=document.getElementById('session-view');
-  const defaults=()=>({base:getSettings().base,raga:getSettings().raga,tempo:50,notes:'',sound:getSettings().sound,source:''});
+  const defaults=()=>({base:getSettings().base,raga:getSettings().raga,tempo:50,notes:'',source:''});
   let state=defaults();
   try{
     const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
-    if(saved&&SHRUTHIS.includes(saved.base)&&RAGAS[saved.raga]&&Number.isInteger(saved.tempo)&&saved.tempo>=30&&saved.tempo<=180&&typeof saved.notes==='string'&&saved.notes.length<=600){state={...defaults(),...saved,base:getSettings().base,raga:getSettings().raga,sound:getSettings().sound};}
+    if(saved&&SHRUTHIS.includes(saved.base)&&RAGAS[saved.raga]&&Number.isInteger(saved.tempo)&&saved.tempo>=30&&saved.tempo<=180&&typeof saved.notes==='string'&&saved.notes.length<=600){state={...defaults(),...saved,base:getSettings().base,raga:getSettings().raga};delete state.sound;}
   }catch{}
   let running=false,runId=0,frame=0,micController=null,micActive=false,micBuffer=null,lastMicFrame=0,previousMidi=null;
   const $=id=>host.querySelector(`#${id}`);
@@ -49,7 +49,6 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       <div class="session-builder"><div class="session-fields">
         ${selectionFields('session',state)}
         <label>Tempo (BPM)<input id="session-tempo" type="number" min="30" max="180" step="1" inputmode="numeric"></label>
-        <label>Sound<select id="session-sound"><option value="piano">Piano</option><option value="voice">My “aaa” voice</option></select></label>
       </div><label class="session-notes-label" for="session-notes">Swaras</label>
       <textarea id="session-notes" rows="3" spellcheck="false" placeholder="S R2 G3 P D2 S'&#10;S' D2 P G3 R2 S"></textarea>
       <div id="session-swatches" class="session-swatches" aria-label="Add a swara"></div>
@@ -58,11 +57,10 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       <div class="session-actions"><button id="session-play" class="primary-button" type="button">Play and sing <span aria-hidden="true">→</span></button><button id="session-stop" class="secondary-button" type="button" disabled>Stop</button><label class="session-mic-label"><input id="session-mic" type="checkbox" checked> Show my sung note</label></div>
       <p id="session-status" class="session-status" role="status">Listen to each line, then sing it for the same number of beats.</p>
       <div class="session-stage"><div class="session-stage-top"><span class="label">CURRENT SWARA</span><span id="session-count">—</span></div><strong id="session-current">—</strong><div id="session-sequence" class="session-sequence"></div><div class="session-progress"><i id="session-progress-fill"></i></div><p id="session-heard">Your note: —</p></div></div>`;
-    $('session-base').value=String(state.base);$('session-raga').value=state.raga;$('session-tempo').value=String(state.tempo);$('session-notes').value=state.notes;$('session-sound').value=state.sound;
+    $('session-base').value=String(state.base);$('session-raga').value=state.raga;$('session-tempo').value=String(state.tempo);$('session-notes').value=state.notes;
     $('session-base').onchange=()=>{state.base=Number($('session-base').value);save();refreshPreview();onSelection?.({base:state.base,raga:state.raga});};
     $('session-raga').onchange=()=>{state.raga=$('session-raga').value;save();renderSwatches();refreshPreview();onSelection?.({base:state.base,raga:state.raga});};
     $('session-tempo').oninput=()=>{state.tempo=Number($('session-tempo').value);save();refreshPreview();};
-    $('session-sound').onchange=()=>{state.sound=$('session-sound').value;save();};
     $('session-notes').oninput=()=>{state.notes=$('session-notes').value;state.source='';$('session-source').hidden=true;save();refreshPreview();};
     $('session-mic').onchange=()=>{$('session-heard').hidden=!$('session-mic').checked;};
     $('session-swatches').onclick=event=>{const button=event.target.closest('[data-code]');if(!button)return;const input=$('session-notes');const prefix=input.value;input.value=prefix?`${prefix}${prefix.endsWith('\n')?'':' '}${button.dataset.code}`:button.dataset.code;state.notes=input.value;state.source='';$('session-source').hidden=true;save();refreshPreview();input.focus();};
@@ -101,7 +99,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     if(micActive){sound.releaseMic();micActive=false;micBuffer=null;}
     sound.stopNotes();
     const play=$('session-play'),halt=$('session-stop');
-    if(play){play.disabled=false;halt.disabled=true;for(const id of ['session-base','session-raga','session-tempo','session-sound','session-notes','session-mic'])$(id).disabled=false;}
+    if(play){play.disabled=false;halt.disabled=true;for(const id of ['session-base','session-raga','session-tempo','session-notes','session-mic'])$(id).disabled=false;}
     if(message&&$('session-status'))$('session-status').textContent=message;
   }
   async function start(){
@@ -109,7 +107,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     try{lines=readLines();}catch(error){$('session-error').textContent=error.message;$('session-error').hidden=false;return;}
     stop();const token=++runId;
     $('session-error').hidden=true;$('session-play').disabled=true;$('session-stop').disabled=false;
-    for(const id of ['session-base','session-raga','session-tempo','session-sound','session-notes','session-mic'])$(id).disabled=true;
+    for(const id of ['session-base','session-raga','session-tempo','session-notes','session-mic'])$(id).disabled=true;
     $('session-status').textContent='Preparing your phrase…';
     const notes=RAGAS[state.raga].notes;
     try{
@@ -135,7 +133,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
           if(line.tokens[beatIndex]==='~'&&segments.length)segments.at(-1).beats++;
           else segments.push({midi:state.base+notes[index].offset,variant:notes[index].variant,beatIndex,beats:1});
         });
-        segments.forEach(({midi,beatIndex,beats})=>sound.scheduleReference(midi,refStart+beatIndex*beat,beats*beat,.19,state.sound));
+        segments.forEach(({midi,beatIndex,beats})=>sound.scheduleReference(midi,refStart+beatIndex*beat,beats*beat));
       });
       running=true;$('session-status').textContent=micWarning||'Listen to line 1.';
       const animate=()=>{
@@ -167,7 +165,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
   }
   render();
   function loadPattern({base,raga,notes,title}){
-    stop();state={...state,base,raga,notes,source:title,sound:getSettings().sound};save();render();
+    stop();state={...state,base,raga,notes,source:title};save();render();
   }
   function syncSelection({base,raga}){
     if(state.base===base&&state.raga===raga)return;
@@ -177,9 +175,5 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       $('session-source').hidden=true;renderSwatches();refreshPreview();
     }
   }
-  function syncReferenceSound(value){
-    state.sound=value;save();
-    if($('session-sound'))$('session-sound').value=state.sound;
-  }
-  return {render,stop,loadPattern,start,syncSelection,syncReferenceSound};
+  return {render,stop,loadPattern,start,syncSelection};
 }

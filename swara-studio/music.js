@@ -25,18 +25,6 @@ export const midiHz = midi => 440 * 2 ** ((midi-69)/12);
 export const centsBetween = (hz, target) => 1200*Math.log2(hz/target);
 export const noteName = midi => ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][((Math.round(midi)%12)+12)%12] + (Math.floor(Math.round(midi)/12)-1);
 export const swaraHz = (base,index,notes=RAGAS[DEFAULT_RAGA].notes) => midiHz(base+notes[index].offset);
-export const VOICE_BANK_FIRST_MIDI=48;
-export const VOICE_BANK_LAST_MIDI=84;
-export const VOICE_BANK_NOTE_SECONDS=3;
-const VOICE_DB='swara-studio-private-aaa-v2';
-function voiceDatabase(){
-  return new Promise((resolve,reject)=>{
-    const request=indexedDB.open(VOICE_DB,1);
-    request.onupgradeneeded=()=>request.result.createObjectStore('audio');
-    request.onsuccess=()=>resolve(request.result);
-    request.onerror=()=>reject(request.error);
-  });
-}
 export function nearestSwara(hz,base,notes=RAGAS[DEFAULT_RAGA].notes){
   const position=12*Math.log2(hz/midiHz(base));
   let best={index:0,cents:Infinity,octave:0};
@@ -91,45 +79,9 @@ export function scorePitch(samples,targets,secondsPerNote,base,tolerance,notes=R
   return {details,accuracy,pass:details.every(d=>d.pass),voiced:details.some(d=>d.detected)};
 }
 export class SoundEngine{
-  constructor(){this.ctx=null;this.nodes=new Set();this.drone=[];this.stream=null;this.recorder=null;this.chunks=[];this.source=null;this.analyser=null;this.recordUrl=null;this.referenceSound='piano';this.voiceBank=null;}
+  constructor(){this.ctx=null;this.nodes=new Set();this.drone=[];this.stream=null;this.recorder=null;this.chunks=[];this.source=null;this.analyser=null;this.recordUrl=null;}
   async unlock(){this.ctx??=new (window.AudioContext||window.webkitAudioContext)();if(this.ctx.state!=='running')await this.ctx.resume();}
-  async importVoiceBank(file){
-    this.ctx??=new (window.AudioContext||window.webkitAudioContext)();
-    const buffer=await this.ctx.decodeAudioData(await file.arrayBuffer());
-    const expected=(VOICE_BANK_LAST_MIDI-VOICE_BANK_FIRST_MIDI+1)*VOICE_BANK_NOTE_SECONDS;
-    if(buffer.numberOfChannels!==1||Math.abs(buffer.duration-expected)>.15)throw new Error('Choose the private 111-second swara-aaa-bank.wav file.');
-    this.voiceBank=buffer;
-    try{
-      const db=await voiceDatabase();
-      try{await new Promise((resolve,reject)=>{const tx=db.transaction('audio','readwrite');tx.objectStore('audio').put(file,'bank');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}
-      finally{db.close();}
-      return true;
-    }catch{return false;}
-  }
-  async loadVoiceBank(){
-    const db=await voiceDatabase();
-    let file;
-    try{file=await new Promise((resolve,reject)=>{const request=db.transaction('audio','readonly').objectStore('audio').get('bank');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
-    finally{db.close();}
-    if(!file)return false;
-    this.ctx??=new (window.AudioContext||window.webkitAudioContext)();
-    this.voiceBank=await this.ctx.decodeAudioData(await file.arrayBuffer());
-    return true;
-  }
-  hasVoiceBank(){return Boolean(this.voiceBank);}
-  scheduleReference(midi,when,duration,volume=.19,choice=this.referenceSound){
-    if(choice!=='voice'||!this.voiceBank||midi<VOICE_BANK_FIRST_MIDI||midi>VOICE_BANK_LAST_MIDI)return this.scheduleTone(midiHz(midi),when,duration,volume);
-    const ctx=this.ctx,source=ctx.createBufferSource(),gain=ctx.createGain(),offset=(midi-VOICE_BANK_FIRST_MIDI)*VOICE_BANK_NOTE_SECONDS;
-    source.buffer=this.voiceBank;
-    if(duration>VOICE_BANK_NOTE_SECONDS){source.loop=true;source.loopStart=offset+.15;source.loopEnd=offset+VOICE_BANK_NOTE_SECONDS-.15;}
-    source.connect(gain);gain.connect(ctx.destination);
-    gain.gain.setValueAtTime(0,when);gain.gain.linearRampToValueAtTime(.56,when+.045);
-    gain.gain.setValueAtTime(.56,when+Math.max(.05,duration-.08));gain.gain.linearRampToValueAtTime(0,when+duration);
-    const entry={master:gain,nodes:[source]};this.nodes.add(entry);
-    source.onended=()=>{try{source.disconnect();gain.disconnect();}catch{}this.nodes.delete(entry);};
-    source.start(when,offset+.02);source.stop(when+duration+.01);
-    return entry;
-  }
+  scheduleReference(midi,when,duration,volume=.19){return this.scheduleTone(midiHz(midi),when,duration,volume);}
   reference(midi,duration,variant='S',volume=.19){return this.scheduleReference(midi,this.ctx.currentTime,duration,volume);}
   tone(hz,duration,volume=.19){return this.scheduleTone(hz,this.ctx.currentTime,duration,volume);}
   scheduleTone(hz,when,duration,volume=.19){

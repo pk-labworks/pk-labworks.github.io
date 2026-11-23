@@ -1,4 +1,4 @@
-import {RAGAS} from './music.js?v=20261122-9';
+import {RAGAS} from './music.js?v=20261123-1';
 import {selectionFields} from './selection.js?v=20261122-8';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 
@@ -104,7 +104,7 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
           if(item.hold){i++;continue;}
           let length=1;while(i+length<beats.length&&beats[i+length].hold)length++;
           const note=raga.notes.find(n=>code(n)===item.code);
-          if(note)sound.scheduleReference(settings.base+note.offset,cursor+i*beat,length*beat,.19,settings.sound);
+          if(note)sound.scheduleReference(settings.base+note.offset,cursor+i*beat,length*beat);
           i+=length;
         }
         cursor+=duration*2+.55;
