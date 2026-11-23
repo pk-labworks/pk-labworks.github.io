@@ -19,7 +19,7 @@ let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phas
 const titles={1:['THE FOUNDATIONS','One swara at a time.','Listen closely. Sing freely. Let your ear lead the way.'],2:['A STEP FORWARD','One note leads to another.','Hold two sounds in your mind, then find each swara.'],3:['MUSICAL MEMORY','Let three notes become one.','Listen for the shape of a phrase, then respond in order.']};
 const isIdentification=()=>mode==='name';
 const isMemory=()=>mode==='memory';
-const availableIndices=()=>SWARAS.map((note,index)=>({note,index})).filter(({note})=>note.register==='middle'||settings.ranges[step][note.register]).map(({index})=>index);
+const availableIndices=()=>SWARAS.map((note,index)=>({note,index})).filter(({note})=>note.register==='middle'||note.offset===12||settings.ranges[step][note.register]).map(({index})=>index);
 const idlePrompt=()=>'';
 const answerPrompt=()=>answers.length===targets.length?'Ready to check your answer.':targets.length===1?'Name the swara after Sa.':`Name swara ${answers.length+1} of ${targets.length} after Sa.`;
 const senseCount=()=>({1:'one swara',2:'two swaras',3:'three swaras'})[step];
