@@ -24,7 +24,7 @@ const PATTERNS=[
 
 const code=note=>note.offset===12?"S'":note.variant.replace(/[₁₂₃]/g,n=>({'₁':'1','₂':'2','₃':'3'})[n]);
 
-function adaptLine(line,raga){
+export function adaptNotationLine(line,raga){
   let previous=null;
   return line.split('|').map(bar=>bar.trim().split(/\s+/).flatMap(token=>{
     if(token==='-')return [];
@@ -45,7 +45,7 @@ function adaptLine(line,raga){
 export function saraliPattern(ragaId,index){
   const raga=RAGAS[ragaId];
   if(!raga||!Number.isInteger(index)||index<0||index>=PATTERNS.length)throw new Error('Choose a Sarali Varasai pattern.');
-  const lines=PATTERNS[index].map(line=>adaptLine(line,raga));
+  const lines=PATTERNS[index].map(line=>adaptNotationLine(line,raga));
   return {lines,notes:lines.map(bars=>bars.flat().map(beat=>beat.code).join(' ')).join('\n')};
 }
 

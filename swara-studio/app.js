@@ -2,7 +2,8 @@ import {RAGA_LIST,RAGAS,DEFAULT_RAGA,practiceSwaras,swaraHz as swaraHzFor,noteNa
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 import {createTools} from './tools.js?v=20261122-8';
 import {createPracticeSession} from './session.js?v=20261123-7';
-import {createSaraliVarasai} from './sarali.js?v=20261123-6';
+import {createSaraliVarasai} from './sarali.js?v=20261123-8';
+import {createAlankaras} from './alankara.js?v=20261123-8';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
 const $=id=>document.getElementById(id);
 const sound=new SoundEngine();
@@ -14,7 +15,7 @@ try{const stored=JSON.parse(localStorage.getItem('swara-studio-v1')||'{}');const
 let RAGA_NOTES=RAGAS[settings.raga].notes,SWARAS=practiceSwaras(RAGAS[settings.raga]);
 const swaraHz=(base,index)=>swaraHzFor(base,index,SWARAS);
 const scorePitch=(samples,targets,secondsPerNote,base,tolerance)=>scorePitchFor(samples,targets,secondsPerNote,base,tolerance,SWARAS);
-let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,lastLiveVoiceAt=0,totalSeconds=3,recallVoicedSeconds=0,previewing=false,previewReturnPhase='idle',comparisonController=null,comparisonButton=null,tools=null,session=null,sarali=null,previousLiveMidi=null,micBuffer=null;
+let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,lastLiveVoiceAt=0,totalSeconds=3,recallVoicedSeconds=0,previewing=false,previewReturnPhase='idle',comparisonController=null,comparisonButton=null,tools=null,session=null,sarali=null,alankara=null,previousLiveMidi=null,micBuffer=null;
 const titles={1:['THE FOUNDATIONS','One swara at a time.','Listen closely. Sing freely. Let your ear lead the way.'],2:['A STEP FORWARD','One note leads to another.','Hold two sounds in your mind, then find each swara.'],3:['MUSICAL MEMORY','Let three notes become one.','Listen for the shape of a phrase, then respond in order.']};
 const isIdentification=()=>mode==='name';
 const isMemory=()=>mode==='memory';
@@ -70,6 +71,7 @@ function setSelection({base,raga}){
   tools?.reset();
   session?.syncSelection(settings);
   sarali?.render();
+  alankara?.render();
 }
 function selectRaga(id){setSelection({base:settings.base,raga:id});}
 function chooseExercise(){
@@ -88,7 +90,7 @@ function chooseExercise(){
 function renderExercise(newSequence=true){
   stopComparison();
   previousLiveMidi=null;live=null;
-  if(newSequence)chooseExercise();totalSeconds=Number(settings.response)*targets.length;const [eyebrow,title,description]=titles[step];$('step-eyebrow').textContent=`STEP 0${step+1} / ${eyebrow}`;$('page-title').textContent=title;$('page-title').classList.toggle('long-title',step>1);$('page-description').textContent=isIdentification()?`You will hear your base Sa, then ${senseCount()}. Name only ${step===1?'the swara':'those swaras in order'} after Sa.`:isMemory()?{1:'Hear Sa, then sing the shown swara.',2:'Hear Sa, then sing the two shown swaras in order.',3:'Hear Sa, then sing the three shown swaras in order.'}[step]:description;
+  if(newSequence)chooseExercise();totalSeconds=Number(settings.response)*targets.length;const [eyebrow,title,description]=titles[step];$('step-eyebrow').textContent=`STEP 0${step+2} / ${eyebrow}`;$('page-title').textContent=title;$('page-title').classList.toggle('long-title',step>1);$('page-description').textContent=isIdentification()?`You will hear your base Sa, then ${senseCount()}. Name only ${step===1?'the swara':'those swaras in order'} after Sa.`:isMemory()?{1:'Hear Sa, then sing the shown swara.',2:'Hear Sa, then sing the two shown swaras in order.',3:'Hear Sa, then sing the three shown swaras in order.'}[step]:description;
   $('include-lower').checked=settings.ranges[step].lower;$('include-upper').checked=settings.ranges[step].upper;
   const concealed=isIdentification();
   const count=targets.length;
@@ -316,8 +318,9 @@ function showView(next){
     if(view==='tools')tools?.stop();
     if(view==='session')session?.stop();
     if(view==='sarali')sarali?.stop();
+    if(view==='alankara')alankara?.stop();
     sound.stopNotes();
-    if((next==='tools'||next==='session'||next==='sarali')&&drone){sound.stopDrone();drone=false;updateDroneButton();}
+    if((next==='tools'||next==='session'||next==='sarali'||next==='alankara')&&drone){sound.stopDrone();drone=false;updateDroneButton();}
   }
   view=next;
   document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==`${next}-view`);
@@ -327,6 +330,7 @@ function showView(next){
   if(next==='library')renderLibrary();
   if(next==='tools')tools?.render();
   if(next==='sarali')sarali?.render();
+  if(next==='alankara')alankara?.render();
 }
 function renderProgress(){
   const ragaHistory=history.filter(entry=>(entry.raga||DEFAULT_RAGA)===settings.raga&&entry.notes.every(note=>note.index<SWARAS.length));
@@ -354,7 +358,7 @@ function renderLibrary(){
   $('library-view').querySelectorAll('[data-library-note]').forEach(b=>b.onclick=async()=>{await sound.unlock();sound.stopNotes();const note=SWARAS[Number(b.dataset.libraryNote)];sound.reference(settings.base+note.offset,referenceDuration(),note.variant);});
 }
 function syncPath(){document.querySelectorAll('[data-step]').forEach(b=>b.classList.toggle('active',view==='practice'&&Number(b.dataset.step)===step));document.querySelectorAll('[data-mode]').forEach(b=>{b.setAttribute('aria-selected',String(b.dataset.mode===mode));b.textContent=({sing:'Learn',name:'Sense',memory:'Recall'})[b.dataset.mode];});}
-function openSettings(){if(busy())return;stopComparison();if(view==='tools')tools?.stop();if(view==='session')session?.stop();if(view==='sarali')sarali?.stop();updateConfig();$('settings-dialog').showModal();}
+function openSettings(){if(busy())return;stopComparison();if(view==='tools')tools?.stop();if(view==='session')session?.stop();if(view==='sarali')sarali?.stop();if(view==='alankara')alankara?.stop();updateConfig();$('settings-dialog').showModal();}
 $('settings-open').onclick=openSettings;
 $('practice-selection').addEventListener('change',()=>setSelection({base:Number($('practice-base').value),raga:$('practice-raga').value}));
 document.querySelectorAll('#octave-options input').forEach(input=>input.addEventListener('change',()=>{
@@ -375,9 +379,10 @@ const tabs=[...document.querySelectorAll('[data-mode]')];tabs.forEach((b,i)=>{b.
 document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{cancelExercise();step=Number(b.dataset.step);mode='sing';attempt=1;samples=[];syncPath();renderExercise();showView('practice');begin();});
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>showView(b.dataset.view));
 document.querySelector('.brand').onclick=e=>{e.preventDefault();showView('practice');};
-document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();stopComparison();tools?.stop();session?.stop();sarali?.stop();sound.stopDrone();drone=false;updateDroneButton();}});
-window.addEventListener('pagehide',()=>{stopComparison();session?.stop();sarali?.stop();sound.shutdown();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();stopComparison();tools?.stop();session?.stop();sarali?.stop();alankara?.stop();sound.stopDrone();drone=false;updateDroneButton();}});
+window.addEventListener('pagehide',()=>{stopComparison();session?.stop();sarali?.stop();alankara?.stop();sound.shutdown();});
 tools=createTools({sound,getSettings:()=>settings,getNotes:()=>RAGA_NOTES,onSelection:setSelection});
 session=createPracticeSession({sound,getSettings:()=>settings,onSelection:setSelection});
 sarali=createSaraliVarasai({sound,getSettings:()=>settings,onSelection:setSelection});
+alankara=createAlankaras({sound,getSettings:()=>settings,onSelection:setSelection});
 updateConfig();syncPath();renderExercise();
