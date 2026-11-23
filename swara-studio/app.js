@@ -12,7 +12,7 @@ try{const stored=JSON.parse(localStorage.getItem('swara-studio-v1')||'{}');const
 let SWARAS=RAGAS[settings.raga].notes;
 const swaraHz=(base,index)=>swaraHzFor(base,index,SWARAS);
 const scorePitch=(samples,targets,secondsPerNote,base,tolerance)=>scorePitchFor(samples,targets,secondsPerNote,base,tolerance,SWARAS);
-let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,lastLiveVoiceAt=0,totalSeconds=3,recallVoicedSeconds=0,previewing=false,comparisonController=null,comparisonButton=null,tools=null,session=null,sarali=null,previousLiveMidi=null,micBuffer=null;
+let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,lastLiveVoiceAt=0,totalSeconds=3,recallVoicedSeconds=0,previewing=false,previewReturnPhase='idle',comparisonController=null,comparisonButton=null,tools=null,session=null,sarali=null,previousLiveMidi=null,micBuffer=null;
 const titles={1:['THE FOUNDATIONS','One swara at a time.','Listen closely. Sing freely. Let your ear lead the way.'],2:['A STEP FORWARD','One note leads to another.','Hold two sounds in your mind, then find each swara.'],3:['MUSICAL MEMORY','Let three notes become one.','Listen for the shape of a phrase, then respond in order.']};
 const isIdentification=()=>mode==='name';
 const isMemory=()=>mode==='memory';
@@ -38,11 +38,11 @@ function setPhase(next,label,time=''){
   $('note-stage').classList.toggle('recording',next==='recording');
   $('begin').innerHTML=busy()
     ?'<span>Stop practice</span><span aria-hidden="true">■</span>'
-    :`<span>${isIdentification()?'Listen':isMemory()?`Hear Sa and sing ${targets.length===1?'note':'notes'}`:'Sing'}</span><span aria-hidden="true">→</span>`;
+    :`<span>${next==='result'?'Try again':isIdentification()?'Listen':isMemory()?`Hear Sa and sing ${targets.length===1?'note':'notes'}`:'Start exercise'}</span><span aria-hidden="true">${next==='result'?'↻':'→'}</span>`;
   const playLabel=next==='reference'?'Stop':'Play';
   $('preview-note').querySelector('span').textContent=playLabel;
   $('preview-note').setAttribute('aria-label',next==='reference'?'Stop playing the swaras':`Play the ${targets.length===1?'swara':'swaras'}`);
-  $('preview-note').hidden=isMemory()||isIdentification()&&next!=='answer'&&next!=='reference';
+  $('preview-note').hidden=isMemory()||isIdentification()&&next!=='answer'&&next!=='reference'||mode==='sing'&&next!=='reference'&&next!=='result';
   $('answer-controls').hidden=next!=='answer';
   $('settings-open').disabled=busy();
   document.querySelectorAll('#practice-selection select').forEach(select=>select.disabled=busy());
@@ -173,9 +173,9 @@ async function playReferences(indices,signal,conceal=false){
 }
 async function preview(){
   if(phase==='reference'&&!previewing){cancelExercise();return;}
-  if(previewing){sound.stopNotes();controller?.abort();previewing=false;const answering=isIdentification()&&!$('answer-options').hidden;setPhase(answering?'answer':'idle',answering?answerPrompt():idlePrompt());return;}
+  if(previewing){sound.stopNotes();controller?.abort();previewing=false;setPhase(previewReturnPhase,previewReturnPhase==='answer'?answerPrompt():idlePrompt());return;}
   if(busy()&&phase!=='answer')return;
-  const wasAnswer=phase==='answer';
+  previewReturnPhase=phase==='answer'?'answer':phase==='result'?'result':'idle';
   controller=new AbortController();
   const signal=controller.signal;
   previewing=true;
@@ -184,7 +184,7 @@ async function preview(){
     throwIfAborted(signal);
     await playReferences(reference,signal,isIdentification());
     throwIfAborted(signal);
-    setPhase(wasAnswer?'answer':'idle',wasAnswer?answerPrompt():'Ready to sing it back.');
+    setPhase(previewReturnPhase,previewReturnPhase==='answer'?answerPrompt():previewReturnPhase==='result'?'Reference finished.':'Ready to sing it back.');
   }catch(e){
     if(e.name!=='AbortError')toast('Audio could not start. Please try again.');
   }finally{previewing=false;}
@@ -199,6 +199,10 @@ async function begin(){
     if(drone){sound.stopDrone();drone=false;updateDroneButton();}
     if(!isIdentification()){await sound.microphone(signal);if(signal.aborted)return;sound.analyser.fftSize=4096;sound.analyser.smoothingTimeConstant=0;micBuffer=new Float32Array(sound.analyser.fftSize);}
     if(isIdentification()){await playReferences(reference,signal,true);setPhase('answer',answerPrompt());$('answer-options').hidden=false;$('answer-options').innerHTML=SWARAS.map((s,i)=>`<button data-answer="${i}">${s.name}</button>`).join('');updateAnswerEntry();return;}
+    if(mode==='sing'){
+      await playReferences(reference,signal);
+      throwIfAborted(signal);
+    }
     if(isMemory()){
       $('note-kicker').textContent='BASE SA';
       await playReferences([0],signal);
@@ -238,7 +242,13 @@ function updateLive(){
   $('detected-cents').textContent=reading.tuning;
   $('practice-tuning-dot').style.left=`${reading.tuningPosition}%`;
 }
-function cancelExercise(){controller?.abort();stopComparison();cancelAnimationFrame(animation);sound.stopNotes();sound.finishRecording();sound.releaseMic();previewing=false;setPhase('idle',idlePrompt());$('answer-options').hidden=true;resetReadings();resetRecallFill();}
+function cancelExercise(){
+  controller?.abort();stopComparison();cancelAnimationFrame(animation);sound.stopNotes();sound.finishRecording();sound.releaseMic();previewing=false;
+  $('note-kicker').textContent=isIdentification()?'HEAR SA FIRST':isMemory()?'FROM MEMORY':'YOUR REFERENCE';
+  $('target-name').textContent=isIdentification()?'?':SWARAS[targets[0]].name;
+  $('target-western').textContent=isIdentification()?senseOrder():isMemory()?'':noteReadout(targets[0]);
+  setPhase('idle',idlePrompt());$('answer-options').hidden=true;resetReadings();resetRecallFill();
+}
 function answer(index){
   if(phase!=='answer'||answers.length>=targets.length)return;
   answers.push(index);
@@ -262,7 +272,7 @@ function submitAnswer(){
   finishResult({accuracy:Math.round(details.reduce((sum,n)=>sum+n.accuracy,0)/details.length),pass:details.every(n=>n.pass),voiced:true,details,identification:true,answers:[...answers]});
 }
 function finishResult(result,recording=null){
-  setPhase('result',result.pass?'A good note to build on.':isMemory()?'Try the swara again from memory.':'Listen again. There’s room to grow.');$('note-kicker').textContent=isMemory()?'FROM MEMORY':'YOUR REFERENCE';$('begin').innerHTML='<span>Try again</span><span aria-hidden="true">↻</span>';$('sequence').querySelectorAll('span').forEach(el=>el.classList.remove('current'));
+  setPhase('result',result.pass?'A good note to build on.':isMemory()?'Try the swara again from memory.':'Listen again. There’s room to grow.');$('note-kicker').textContent=isMemory()?'FROM MEMORY':'YOUR REFERENCE';$('sequence').querySelectorAll('span').forEach(el=>el.classList.remove('current'));
   const entry={time:Date.now(),step,mode,raga:settings.raga,base:settings.base,level:settings.level,accuracy:result.accuracy,pass:result.pass,notes:result.details,voiced:result.voiced};history.push(entry);save();updateDaily();
   let heading=result.pass?'That’s the sound. Keep it with you.':!result.voiced?'Let’s find your voice.':isMemory()?'A small adjustment. Try again.':'A small adjustment. Another listen.';
   let body='';
@@ -285,11 +295,12 @@ function finishResult(result,recording=null){
   $('exercise-panel').classList.add('show-result');$('exercise-panel').classList.toggle('memory-result',isMemory());$('feedback').hidden=false;$('feedback').innerHTML=`<h3>${heading}</h3><p>${body}</p>${result.identification?'':`<div class="feedback-stat">${result.accuracy}% of detected pitch frames within ±${tolerance()} cents${!result.voiced?' · No reliable voice detected':''}</div>`}<div class="result-notes">${result.details.map(d=>`<span>${SWARAS[d.index].name} · ${d.detected?d.accuracy+'%':'not heard'}${d.stability!==null&&d.stability!==undefined?' · '+Math.round(d.stability)+'¢ variation':''}</span>`).join('')}</div>${recallMarkup}<div class="feedback-actions"><button class="primary-button" id="next-exercise">Next exercise <span>→</span></button><button class="secondary-button" id="retry-exercise">${isMemory()?'Try again':'Listen & retry'}</button>${recording?'<audio controls aria-label="Listen to your recording"></audio>':''}</div>`;
   if(recording)$('feedback').querySelector('audio').src=recording;
   $('feedback').querySelectorAll('[data-compare]').forEach(button=>button.onclick=()=>playComparison(result.details[Number(button.dataset.compare)].index,button));
-  $('next-exercise').onclick=nextExercise;$('retry-exercise').onclick=()=>{attempt++;if(mode==='sing')renderExercise(false);else begin();};
+  $('next-exercise').onclick=nextExercise;$('retry-exercise').onclick=()=>{attempt++;if(mode==='sing'){renderExercise(false);begin();}else begin();};
 }
 function nextExercise(){
   cancelExercise();exercise++;attempt=1;
   samples=[];renderExercise();
+  if(mode==='sing')begin();
 }
 function updateDaily(){const today=new Date().toDateString();const n=history.filter(h=>new Date(h.time).toDateString()===today).length;$('today-count').innerHTML=`${n} <span>/ 8</span>`;$('goal-ring').style.strokeDashoffset=String(125.67*(1-Math.min(n/8,1)));}
 function updateDroneButton(){$('drone-toggle').setAttribute('aria-pressed',String(drone));$('drone-status').textContent=drone?'On':'Off';}
@@ -324,7 +335,7 @@ function renderProgress(){
     content+=`<div class="recommendation"><p><strong>${ready?'Ready for a new kind of listening.':`Keep listening with a fresh sequence.`}</strong>${ready?'Your last five attempts met the accuracy target. Explore the next step on your learning path.':`The app will choose the next swaras for you. Replay the sequence as often as you need.`}</p><button class="primary-button" id="recommended-practice" data-rec-step="${recommendedStep}">Continue practice <span>→</span></button></div><h2 class="section-title">A closer look at each swara</h2><table class="data-table"><thead><tr><th>SWARA</th><th>ATTEMPTS</th><th>ACCURACY</th><th>PITCH VARIATION</th></tr></thead><tbody>${stats.map(s=>`<tr><td>${s.name} <small>${s.variant}</small></td><td>${s.count||'—'}</td><td>${s.accuracy===null?'—':s.accuracy+'%'}</td><td>${s.stability===null?'—':s.stability+' cents'}</td></tr>`).join('')}</tbody></table><h2 class="section-title">Recent practice</h2><table class="data-table"><thead><tr><th>WHEN</th><th>EXERCISE</th><th>SHRUTHI</th><th>ACCURACY</th></tr></thead><tbody>${[...ragaHistory].reverse().slice(0,15).map(h=>`<tr><td>${new Date(h.time).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</td><td>${({sing:'Singing',name:'Naming',memory:'From memory',repeat:'Singing',next:'Singing',identify:'Naming'})[h.mode]||'Practice'} · Step ${h.step} · ${h.notes.map(n=>SWARAS[n.index].name).join(' ')}</td><td>${noteName(h.base)}</td><td>${h.accuracy}%</td></tr>`).join('')}</tbody></table><p class="field-note">Pitch accuracy is the proportion of detected voice frames within the selected tolerance. Variation is the median pitch spread. This journal stays on this browser and device.</p>`;
   }$('progress-view').innerHTML=content;
   $('progress-view').querySelector('[data-back-practice]')?.addEventListener('click',()=>showView('practice'));
-  $('recommended-practice')?.addEventListener('click',e=>{const b=e.currentTarget;step=Number(b.dataset.recStep);mode='sing';syncPath();renderExercise();showView('practice');});
+  $('recommended-practice')?.addEventListener('click',e=>{const b=e.currentTarget;step=Number(b.dataset.recStep);mode='sing';syncPath();renderExercise();showView('practice');begin();});
 }
 function renderLibrary(){
   const cards=RAGA_LIST.map(raga=>{
@@ -350,8 +361,8 @@ $('answer-clear').onclick=()=>{if(phase==='answer'&&answers.length){answers=[];u
 $('answer-submit').onclick=submitAnswer;
 $('begin').onclick=()=>{if(phase==='result')attempt++;begin();};$('preview-note').onclick=preview;
 // Tabs follow standard keyboard behavior as well as pointer interaction.
-const tabs=[...document.querySelectorAll('[data-mode]')];tabs.forEach((b,i)=>{b.onclick=()=>{if(mode===b.dataset.mode)return;cancelExercise();mode=b.dataset.mode;attempt=1;samples=[];syncPath();renderExercise(false);};b.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const index=e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[index].focus();tabs[index].click();}};});
-document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{cancelExercise();step=Number(b.dataset.step);mode='sing';attempt=1;samples=[];syncPath();renderExercise();showView('practice');});
+const tabs=[...document.querySelectorAll('[data-mode]')];tabs.forEach((b,i)=>{b.onclick=()=>{if(mode===b.dataset.mode)return;cancelExercise();mode=b.dataset.mode;attempt=1;samples=[];syncPath();renderExercise(false);if(mode==='sing')begin();};b.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const index=e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[index].focus();tabs[index].click();}};});
+document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{cancelExercise();step=Number(b.dataset.step);mode='sing';attempt=1;samples=[];syncPath();renderExercise();showView('practice');begin();});
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>showView(b.dataset.view));
 document.querySelector('.brand').onclick=e=>{e.preventDefault();showView('practice');};
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();stopComparison();tools?.stop();session?.stop();sarali?.stop();sound.stopDrone();drone=false;updateDroneButton();}});
