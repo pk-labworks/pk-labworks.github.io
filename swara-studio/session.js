@@ -1,5 +1,6 @@
 import {RAGAS,practiceSwaras,midiHz,centsBetween} from './music.js?v=20261123-3';
-import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
+import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
+import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261123-6';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
 
 const STORAGE_KEY='swara-studio-custom-session-v1';
@@ -69,7 +70,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     if(saved&&SHRUTHIS.includes(saved.base)&&RAGAS[saved.raga]&&Number.isInteger(saved.tempo)&&saved.tempo>=30&&saved.tempo<=180&&typeof saved.notes==='string'&&saved.notes.length<=8192){state={...defaults(),...saved,base:getSettings().base,raga:getSettings().raga};delete state.sound;}
   }catch{}
   if(!savedExercises.some(exercise=>exercise.id===state.savedId))state.savedId=null;
-  let running=false,runId=0,frame=0,micController=null,micActive=false,micBuffer=null,lastMicFrame=0,previousMidi=null;
+  let running=false,runId=0,frame=0,micController=null,micActive=false,micBuffer=null,lastMicFrame=0,previousMidi=null,lastVoiceAt=0;
   const $=id=>host.querySelector(`#${id}`);
   const save=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch{}};
   const setError=message=>{$('session-error').textContent=message;$('session-error').hidden=false;};
@@ -89,14 +90,14 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       <p id="session-error" class="session-error" role="alert" hidden></p>
       <div class="session-actions"><button id="session-play" class="primary-button" type="button">Play and sing <span aria-hidden="true">→</span></button><button id="session-stop" class="secondary-button" type="button" disabled>Stop</button><label class="session-mic-label"><input id="session-mic" type="checkbox" checked> Show my sung note</label></div>
       <p id="session-status" class="session-status" role="status">Listen to each line, then sing it for the same number of beats.</p>
-      <div class="session-stage"><div class="session-stage-top"><span class="label">CURRENT SWARA</span><span id="session-count">—</span></div><strong id="session-current">—</strong><div id="session-sequence" class="session-sequence"></div><div class="session-progress"><i id="session-progress-fill"></i></div><p id="session-heard">Your note: —</p></div><div id="session-results" class="session-results" hidden></div></div>`;
+      <div class="session-stage"><div class="session-stage-top"><span class="label">CURRENT SWARA</span><span id="session-count">—</span></div><strong id="session-current">—</strong><div id="session-sequence" class="session-sequence"></div><div class="session-progress"><i id="session-progress-fill"></i></div>${liveReadoutMarkup('session')}</div><div id="session-results" class="session-results" hidden></div></div>`;
     $('session-base').value=String(state.base);$('session-raga').value=state.raga;$('session-tempo').value=String(state.tempo);$('session-notes').value=state.notes;$('session-name').value=state.name||'';
     $('session-base').onchange=()=>{state.base=Number($('session-base').value);save();refreshPreview();onSelection?.({base:state.base,raga:state.raga});};
     $('session-raga').onchange=()=>{state.raga=$('session-raga').value;save();renderSwatches();refreshPreview();onSelection?.({base:state.base,raga:state.raga});};
     $('session-tempo').oninput=()=>{state.tempo=Number($('session-tempo').value);save();refreshPreview();};
     $('session-notes').oninput=()=>{state.notes=$('session-notes').value;state.source='';$('session-source').hidden=true;save();refreshPreview();};
     $('session-name').oninput=()=>{state.name=$('session-name').value;save();};
-    $('session-mic').onchange=()=>{$('session-heard').hidden=!$('session-mic').checked;};
+    $('session-mic').onchange=()=>{host.querySelector('.line-live-readout').hidden=!$('session-mic').checked;};
     $('session-swatches').onclick=event=>{const button=event.target.closest('[data-code]');if(!button)return;const input=$('session-notes');const prefix=input.value;input.value=prefix?`${prefix}${prefix.endsWith('\n')?'':' '}${button.dataset.code}`:button.dataset.code;state.notes=input.value;state.source='';$('session-source').hidden=true;save();refreshPreview();input.focus();};
     $('session-play').onclick=start;
     $('session-stop').onclick=()=>stop('Stopped.');
@@ -104,7 +105,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     $('session-new').onclick=newExercise;
     $('session-delete').onclick=deleteSavedExercise;
     $('session-save').onclick=saveCurrentExercise;
-    renderSavedExercises();renderSwatches();refreshPreview();$('session-heard').hidden=!$('session-mic').checked;
+    renderSavedExercises();renderSwatches();refreshPreview();host.querySelector('.line-live-readout').hidden=!$('session-mic').checked;
     if(state.source){$('session-source').textContent=state.source;$('session-source').hidden=false;}
   }
   function renderSavedExercises(){
@@ -163,11 +164,11 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     return lines;
   }
   function refreshPreview(){
-    if(!running){$('session-current').textContent='—';$('session-progress-fill').style.width='0';$('session-heard').textContent='Your note: —';$('session-status').textContent='Listen to each line, then sing it for the same number of beats.';$('session-results').hidden=true;}
+    if(!running){$('session-current').textContent='—';$('session-progress-fill').style.width='0';clearLiveReadout(host,'session');previousMidi=null;$('session-status').textContent='Listen to each line, then sing it for the same number of beats.';$('session-results').hidden=true;}
     try{
       const lines=readLines(),notes=practiceSwaras(RAGAS[state.raga]);
       $('session-error').hidden=true;
-      $('session-sequence').innerHTML=lines.map((line,lineIndex)=>`<div class="session-score-line"><b>Line ${lineIndex+1}</b>${line.indices.map((i,n)=>`<span data-line="${lineIndex}" data-beat="${n}">${line.tokens[n]==='~'?'Hold '+swaraLabel(notes[i]):swaraLabel(notes[i])}</span>`).join('')}</div>`).join('');
+      $('session-sequence').innerHTML=lines.map((line,lineIndex)=>`<div class="session-score-line" data-score-line="${lineIndex}"><b>Line ${lineIndex+1}</b>${line.indices.map((i,n)=>`<span data-line="${lineIndex}" data-beat="${n}">${line.tokens[n]==='~'?'Hold '+swaraLabel(notes[i]):swaraLabel(notes[i])}</span>`).join('')}</div>`).join('');
       const beats=lines.reduce((sum,line)=>sum+line.indices.length,0);
       $('session-count').textContent=`${lines.length} line${lines.length===1?'':'s'} · ${beats} beats each way`;
     }catch(error){
@@ -176,10 +177,19 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       else $('session-error').hidden=true;
     }
   }
+  function showLineWindow(lineIndex){
+    host.querySelectorAll('.session-score-line').forEach(row=>{
+      const index=Number(row.dataset.scoreLine);
+      row.hidden=Math.abs(index-lineIndex)>1;
+      row.classList.toggle('active-line',index===lineIndex);
+    });
+  }
   function stop(message=''){
     runId++;running=false;cancelAnimationFrame(frame);frame=0;micController?.abort();micController=null;
     if(micActive){sound.releaseMic();micActive=false;micBuffer=null;}
     sound.stopNotes();
+    host.querySelectorAll('.session-score-line').forEach(row=>{row.hidden=false;row.classList.remove('active-line');});
+    clearLiveReadout(host,'session');previousMidi=null;
     const play=$('session-play'),halt=$('session-stop');
     if(play){play.disabled=false;halt.disabled=true;for(const id of ['session-base','session-raga','session-tempo','session-notes','session-name','session-mic','session-saved','session-new','session-save'])$(id).disabled=false;$('session-delete').disabled=!state.savedId;}
     if(message&&$('session-status'))$('session-status').textContent=message;
@@ -201,6 +211,8 @@ export function createPracticeSession({sound,getSettings,onSelection}){
   }
   async function runPhase({line,lineIndex,lineCount,attempt,phase,beat,notes,token,startAt}){
     const duration=line.indices.length*beat,samples=[];
+    showLineWindow(lineIndex);
+    if(phase==='reference'){clearLiveReadout(host,'session');previousMidi=null;lastVoiceAt=0;}
     const animate=()=>{
       if(!running||token!==runId)return;
       const now=sound.ctx.currentTime,elapsed=Math.max(0,now-startAt);
@@ -213,8 +225,8 @@ export function createPracticeSession({sound,getSettings,onSelection}){
         lastMicFrame=now;sound.analyser.getFloatTimeDomainData(micBuffer);
         const hz=detectLivePitch(micBuffer,sound.ctx.sampleRate);
         samples.push({t:elapsed,hz:hz||null});
-        if(hz){const reading=livePitchReading(hz,state.base,previousMidi);previousMidi=reading.midi;$('session-heard').textContent=`Your note: ${reading.fullName} · ${hz.toFixed(1)} Hz`;}
-        else $('session-heard').textContent='Your note: —';
+        if(hz){previousMidi=showLiveReadout(host,'session',hz,state.base,previousMidi);lastVoiceAt=now;}
+        else if(now-lastVoiceAt>.7){clearLiveReadout(host,'session');previousMidi=null;}
       }
       frame=requestAnimationFrame(animate);
     };
@@ -225,7 +237,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
   function showResults(results,notes,scored,tolerance){
     const hostResults=$('session-results');
     hostResults.hidden=false;
-    if(!scored){hostResults.innerHTML='<h2>Practice complete</h2><p>Turn on “Show my sung note” and allow microphone access to get a score and note guidance.</p>';return;}
+    if(!scored){hostResults.innerHTML='<h2>Practice complete</h2><p>Turn on “Show my sung note” and allow microphone access to get a score and note guidance.</p>';hostResults.scrollIntoView({block:'nearest'});return;}
     const best=results.map(result=>result.attempts.reduce((winner,attempt)=>!winner||attempt.score>winner.score?attempt:winner,null));
     const score=Math.round(best.reduce((sum,line)=>sum+line.score,0)/best.length);
     const weakLines=best.map((line,index)=>({line,index})).filter(({line})=>line.score<60).map(({index})=>index+1);
@@ -234,6 +246,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       const weak=[...new Set(line.details.filter(note=>note.score<60).map(note=>swaraLabel(notes[note.index])))];
       return `<div><strong>Line ${index+1}: ${line.score}%</strong><span>${results[index].attempts.length} ${results[index].attempts.length===1?'attempt':'attempts'}${weak.length?` · Practice ${weak.join(', ')}`:' · Well done'}</span></div>`;
     }).join('')}</div><p class="session-guidance">${weakLines.length?`Practice ${weakLines.length===1?'line':'lines'} ${weakLines.join(', ')} again, focusing on the notes listed above.`:weakNotes?'All lines reached 60%. Keep working on the notes listed above to make them steadier.':'All lines reached 60%. Keep practicing at a comfortable tempo.'}</p>`;
+    hostResults.scrollIntoView({block:'nearest'});
   }
   async function start(){
     let lines;
@@ -251,13 +264,14 @@ export function createPracticeSession({sound,getSettings,onSelection}){
         catch{if(token!==runId)return;$('session-status').textContent='Microphone unavailable. You can still listen and sing, without a score.';}
       }
       const scored=micActive,results=[];running=true;
+      $('session-stage').scrollIntoView({block:'center'});
       for(let lineIndex=0;lineIndex<lines.length;lineIndex++){
         const line=lines[lineIndex],attempts=[];
         let firstScore=null;
         for(let attempt=1;attempt<=(scored?3:1);attempt++){
           const refStart=sound.ctx.currentTime+.1;
           scheduleLine(line,notes,beat,refStart);
-          $('session-heard').textContent='Your note: —';
+          clearLiveReadout(host,'session');
           $('session-status').textContent=`Listen to line ${lineIndex+1}${attempt>1?` again (try ${attempt} of 3)`:''}.`;
           await runPhase({line,lineIndex,lineCount:lines.length,attempt,phase:'reference',beat,notes,token,startAt:refStart});
           await waitUntil(sound.ctx.currentTime+.25,token);
@@ -275,7 +289,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
         }
         results.push({attempts});
       }
-      stop('Session complete.');showResults(results,notes,scored,tolerance);
+      stop('Session complete.');showLineWindow(lines.length-1);showResults(results,notes,scored,tolerance);
     }catch(error){if(token!==runId||error.name==='AbortError')return;stop(error.message||'The session could not start.');setError(error.message||'The session could not start.');}
   }
   render();
