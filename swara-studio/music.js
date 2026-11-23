@@ -20,6 +20,14 @@ export const RAGA_LIST=[
 ];
 export const RAGAS=Object.fromEntries(RAGA_LIST.map(raga=>[raga.id,raga]));
 export const DEFAULT_RAGA='mayamalavagowla';
+export function practiceSwaras(raga){
+  const middleAndUpperSa=raga.notes.map(note=>({...note,register:note.offset===12?'upper':'middle'}));
+  const lower=raga.notes.filter(note=>note.offset<12&&'PDN'.includes(note.variant[0]))
+    .map(note=>({...note,name:`Lower ${note.name}`,offset:note.offset-12,register:'lower'}));
+  const upper=raga.notes.filter(note=>note.offset<12&&'RGMP'.includes(note.variant[0]))
+    .map(note=>({...note,name:`Upper ${note.name}`,offset:note.offset+12,register:'upper'}));
+  return [...middleAndUpperSa,...lower,...upper];
+}
 export const PITCH_POSITION_LABELS=['Sa','R₁','R₂/G₁','R₃/G₂','G₃','M₁','M₂','Pa','D₁','D₂/N₁','D₃/N₂','N₃'];
 export const midiHz = midi => 440 * 2 ** ((midi-69)/12);
 export const centsBetween = (hz, target) => 1200*Math.log2(hz/target);

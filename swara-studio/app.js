@@ -1,28 +1,31 @@
-import {RAGA_LIST,RAGAS,DEFAULT_RAGA,swaraHz as swaraHzFor,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261123-1';
+import {RAGA_LIST,RAGAS,DEFAULT_RAGA,practiceSwaras,swaraHz as swaraHzFor,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261123-3';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 import {createTools} from './tools.js?v=20261122-8';
-import {createPracticeSession} from './session.js?v=20261123-1';
+import {createPracticeSession} from './session.js?v=20261123-3';
 import {createSaraliVarasai} from './sarali.js?v=20261123-1';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
 const $=id=>document.getElementById(id);
 const sound=new SoundEngine();
-const defaults={base:56,raga:DEFAULT_RAGA,level:'beginner',duration:'3',response:3};
-let settings={...defaults},history=[];
-try{const stored=JSON.parse(localStorage.getItem('swara-studio-v1')||'{}');const s=stored.settings||{};settings={base:SHRUTHIS.includes(s.base)?s.base:56,raga:RAGAS[s.raga]?.notes?s.raga:DEFAULT_RAGA,level:['beginner','intermediate','advanced'].includes(s.level)?s.level:'beginner',duration:['3','5','10'].includes(s.duration)?s.duration:defaults.duration,response:[3,5,10].includes(Number(s.response))?Number(s.response):defaults.response};history=Array.isArray(stored.history)?stored.history.filter(h=>Number.isFinite(h.accuracy)&&h.accuracy>=0&&h.accuracy<=100&&Number.isFinite(h.time)&&Number.isInteger(h.step)&&h.step>=1&&h.step<=4&&Array.isArray(h.notes)&&h.notes.every(n=>Number.isInteger(n.index)&&n.index>=0&&n.index<8)).slice(-500):[];}catch{}
-let SWARAS=RAGAS[settings.raga].notes;
+const defaultRanges=()=>Object.fromEntries([1,2,3].map(step=>[step,{lower:false,upper:false}]));
+const readRanges=value=>Object.fromEntries([1,2,3].map(step=>[step,{lower:value?.[step]?.lower===true,upper:value?.[step]?.upper===true}]));
+const defaults={base:56,raga:DEFAULT_RAGA,level:'beginner',duration:'3',response:3,ranges:defaultRanges()};
+let settings={...defaults,ranges:defaultRanges()},history=[];
+try{const stored=JSON.parse(localStorage.getItem('swara-studio-v1')||'{}');const s=stored.settings||{};settings={base:SHRUTHIS.includes(s.base)?s.base:56,raga:RAGAS[s.raga]?.notes?s.raga:DEFAULT_RAGA,level:['beginner','intermediate','advanced'].includes(s.level)?s.level:'beginner',duration:['3','5','10'].includes(s.duration)?s.duration:defaults.duration,response:[3,5,10].includes(Number(s.response))?Number(s.response):defaults.response,ranges:readRanges(s.ranges)};history=Array.isArray(stored.history)?stored.history.filter(h=>Number.isFinite(h.accuracy)&&h.accuracy>=0&&h.accuracy<=100&&Number.isFinite(h.time)&&Number.isInteger(h.step)&&h.step>=1&&h.step<=4&&Array.isArray(h.notes)&&h.notes.every(n=>Number.isInteger(n.index)&&n.index>=0&&n.index<20)).slice(-500):[];}catch{}
+let RAGA_NOTES=RAGAS[settings.raga].notes,SWARAS=practiceSwaras(RAGAS[settings.raga]);
 const swaraHz=(base,index)=>swaraHzFor(base,index,SWARAS);
 const scorePitch=(samples,targets,secondsPerNote,base,tolerance)=>scorePitchFor(samples,targets,secondsPerNote,base,tolerance,SWARAS);
 let step=1,mode='sing',reference=[0],targets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,lastLiveVoiceAt=0,totalSeconds=3,recallVoicedSeconds=0,previewing=false,previewReturnPhase='idle',comparisonController=null,comparisonButton=null,tools=null,session=null,sarali=null,previousLiveMidi=null,micBuffer=null;
 const titles={1:['THE FOUNDATIONS','One swara at a time.','Listen closely. Sing freely. Let your ear lead the way.'],2:['A STEP FORWARD','One note leads to another.','Hold two sounds in your mind, then find each swara.'],3:['MUSICAL MEMORY','Let three notes become one.','Listen for the shape of a phrase, then respond in order.']};
 const isIdentification=()=>mode==='name';
 const isMemory=()=>mode==='memory';
+const availableIndices=()=>SWARAS.map((note,index)=>({note,index})).filter(({note})=>note.register==='middle'||settings.ranges[step][note.register]).map(({index})=>index);
 const idlePrompt=()=>'';
 const answerPrompt=()=>answers.length===targets.length?'Ready to check your answer.':targets.length===1?'Name the swara after Sa.':`Name swara ${answers.length+1} of ${targets.length} after Sa.`;
 const senseCount=()=>({1:'one swara',2:'two swaras',3:'three swaras'})[step];
 const senseOrder=()=>`Base Sa → ${senseCount()}`;
 const busy=()=>!['idle','result'].includes(phase);
 const tolerance=()=>({beginner:35,intermediate:25,advanced:15})[settings.level];
-const noteReadout=index=>`${SWARAS[index].variant} · ${noteName(settings.base+SWARAS[index].offset)} · ${swaraHz(settings.base,index).toFixed(2)} Hz`;
+const noteReadout=index=>`${swaraLabel(index)} · ${noteName(settings.base+SWARAS[index].offset)} · ${swaraHz(settings.base,index).toFixed(2)} Hz`;
 const swaraLabel=index=>SWARAS[index].offset===12?'Upper Sa':SWARAS[index].name+SWARAS[index].variant.slice(1);
 function save(){try{localStorage.setItem('swara-studio-v1',JSON.stringify({settings,history:history.slice(-500)}));}catch{toast('Device storage is unavailable. This session will remain open, but progress may not be saved.');}}
 let toastTimer;
@@ -46,6 +49,7 @@ function setPhase(next,label,time=''){
   $('answer-controls').hidden=next!=='answer';
   $('settings-open').disabled=busy();
   document.querySelectorAll('#practice-selection select').forEach(select=>select.disabled=busy());
+  document.querySelectorAll('#octave-options input').forEach(input=>input.disabled=busy());
   $('preview-note').disabled=busy()&&phase!=='reference'&&phase!=='answer';
 }
 function updateConfig(){
@@ -57,7 +61,7 @@ function updateConfig(){
 }
 function setSelection({base,raga}){
   if(busy()||!SHRUTHIS.includes(base)||!RAGAS[raga]?.notes)return;
-  settings.base=base;settings.raga=raga;SWARAS=RAGAS[raga].notes;
+  settings.base=base;settings.raga=raga;RAGA_NOTES=RAGAS[raga].notes;SWARAS=practiceSwaras(RAGAS[raga]);
   samples=[];live=null;attempt=1;
   if(drone)sound.toggleDrone(base,true);
   updateConfig();renderExercise();save();
@@ -70,7 +74,7 @@ function setSelection({base,raga}){
 function selectRaga(id){setSelection({base:settings.base,raga:id});}
 function chooseExercise(){
   for(let attempt=0;attempt<12;attempt++){
-    const notes=SWARAS.map((_,index)=>index);
+    const notes=availableIndices();
     for(let i=notes.length-1;i>0;i--){
       const j=Math.floor(Math.random()*(i+1));
       [notes[i],notes[j]]=[notes[j],notes[i]];
@@ -85,6 +89,7 @@ function renderExercise(newSequence=true){
   stopComparison();
   previousLiveMidi=null;live=null;
   if(newSequence)chooseExercise();totalSeconds=Number(settings.response)*targets.length;const [eyebrow,title,description]=titles[step];$('step-eyebrow').textContent=`STEP 0${step+1} / ${eyebrow}`;$('page-title').textContent=title;$('page-title').classList.toggle('long-title',step>1);$('page-description').textContent=isIdentification()?`You will hear your base Sa, then ${senseCount()}. Name only ${step===1?'the swara':'those swaras in order'} after Sa.`:isMemory()?{1:'Hear Sa, then sing the shown swara.',2:'Hear Sa, then sing the two shown swaras in order.',3:'Hear Sa, then sing the three shown swaras in order.'}[step]:description;
+  $('include-lower').checked=settings.ranges[step].lower;$('include-upper').checked=settings.ranges[step].upper;
   const concealed=isIdentification();
   const count=targets.length;
   const heading=concealed?'Listen and Name':isMemory()?'Sing from Memory':'Listen and Sing';
@@ -198,7 +203,7 @@ async function begin(){
     setPhase('preparing',isIdentification()?'Preparing the reference.':'Waiting for microphone access…');await sound.unlock();throwIfAborted(signal);
     if(drone){sound.stopDrone();drone=false;updateDroneButton();}
     if(!isIdentification()){await sound.microphone(signal);if(signal.aborted)return;sound.analyser.fftSize=4096;sound.analyser.smoothingTimeConstant=0;micBuffer=new Float32Array(sound.analyser.fftSize);}
-    if(isIdentification()){await playReferences(reference,signal,true);setPhase('answer',answerPrompt());$('answer-options').hidden=false;$('answer-options').innerHTML=SWARAS.map((s,i)=>`<button data-answer="${i}">${s.name}</button>`).join('');updateAnswerEntry();return;}
+    if(isIdentification()){await playReferences(reference,signal,true);setPhase('answer',answerPrompt());$('answer-options').hidden=false;$('answer-options').innerHTML=availableIndices().sort((a,b)=>SWARAS[a].offset-SWARAS[b].offset).map(i=>`<button data-answer="${i}">${swaraLabel(i)}</button>`).join('');updateAnswerEntry();return;}
     if(mode==='sing'){
       await playReferences(reference,signal);
       throwIfAborted(signal);
@@ -344,7 +349,7 @@ function renderLibrary(){
     const descent=[...raga.notes].reverse().map(note=>note.variant).join(' ');
     return `<article class="raga-card${selected?' selected':''}"><div class="raga-card-heading"><span class="label">${raga.type}</span>${selected?'<span class="raga-current">Selected</span>':''}</div><h2>${raga.name}</h2><p>${raga.description}</p><div class="raga-scale"><span>Ārohaṇa</span><strong>${ascent}</strong><span>Avarohaṇa</span><strong>${descent}</strong></div><div class="raga-actions"><button class="secondary-button" data-practice-raga="${raga.id}" aria-label="Practice ${raga.name}">${selected?'Continue practice':'Practice this raga'} <span aria-hidden="true">→</span></button><a href="${raga.source}" target="_blank" rel="noopener noreferrer">Scale source ↗</a></div></article>`;
   }).join('');
-  $('library-view').innerHTML=`<p class="eyebrow">THE SWARA LIBRARY</p><h1 class="progress-intro">Choose a raga.</h1><p class="page-description">Explore the note sets, then practice listening, naming, or singing in the selected raga.</p><p class="library-note">Seven swara names share twelve pitch positions in an octave. A raga chooses specific variants; Mohanam uses five swaras.</p><div class="raga-grid">${cards}</div><h2 class="section-title">Notes in ${RAGAS[settings.raga].name}</h2><table class="data-table"><thead><tr><th>SWARA</th><th>VARIANT</th><th>WESTERN NOTE</th><th>FREQUENCY</th><th>LISTEN</th></tr></thead><tbody>${SWARAS.map((s,i)=>`<tr><td>${s.name}</td><td>${s.variant}</td><td>${noteName(settings.base+s.offset)}</td><td>${swaraHz(settings.base,i).toFixed(2)} Hz</td><td><button class="secondary-button" data-library-note="${i}" aria-label="Listen to ${s.name}">▷</button></td></tr>`).join('')}</tbody></table><p class="field-note">Pitches are relative to your selected Sa (${noteName(settings.base)}) and use equal temperament. These exercises use plain notes; characteristic phrases, gamakas, and intonation need guided listening beyond this pitch chart.</p>`;
+  $('library-view').innerHTML=`<p class="eyebrow">THE SWARA LIBRARY</p><h1 class="progress-intro">Choose a raga.</h1><p class="page-description">Explore the note sets, then practice listening, naming, or singing in the selected raga.</p><p class="library-note">Seven swara names share twelve pitch positions in an octave. A raga chooses specific variants; Mohanam uses five swaras.</p><div class="raga-grid">${cards}</div><h2 class="section-title">Notes in ${RAGAS[settings.raga].name}</h2><table class="data-table"><thead><tr><th>SWARA</th><th>VARIANT</th><th>WESTERN NOTE</th><th>FREQUENCY</th><th>LISTEN</th></tr></thead><tbody>${RAGA_NOTES.map((s,i)=>`<tr><td>${s.name}</td><td>${s.variant}</td><td>${noteName(settings.base+s.offset)}</td><td>${swaraHz(settings.base,i).toFixed(2)} Hz</td><td><button class="secondary-button" data-library-note="${i}" aria-label="Listen to ${s.name}">▷</button></td></tr>`).join('')}</tbody></table><p class="field-note">Pitches are relative to your selected Sa (${noteName(settings.base)}) and use equal temperament. These exercises use plain notes; characteristic phrases, gamakas, and intonation need guided listening beyond this pitch chart.</p>`;
   $('library-view').querySelectorAll('[data-practice-raga]').forEach(button=>button.onclick=()=>{selectRaga(button.dataset.practiceRaga);showView('practice');});
   $('library-view').querySelectorAll('[data-library-note]').forEach(b=>b.onclick=async()=>{await sound.unlock();sound.stopNotes();const note=SWARAS[Number(b.dataset.libraryNote)];sound.reference(settings.base+note.offset,referenceDuration(),note.variant);});
 }
@@ -352,6 +357,11 @@ function syncPath(){document.querySelectorAll('[data-step]').forEach(b=>b.classL
 function openSettings(){if(busy())return;stopComparison();if(view==='tools')tools?.stop();if(view==='session')session?.stop();if(view==='sarali')sarali?.stop();updateConfig();$('settings-dialog').showModal();}
 $('settings-open').onclick=openSettings;
 $('practice-selection').addEventListener('change',()=>setSelection({base:Number($('practice-base').value),raga:$('practice-raga').value}));
+document.querySelectorAll('#octave-options input').forEach(input=>input.addEventListener('change',()=>{
+  settings.ranges[step][input.id==='include-lower'?'lower':'upper']=input.checked;
+  cancelExercise();attempt=1;renderExercise();save();
+  if(mode==='sing')begin();
+}));
 $('settings-dialog').querySelector('form').addEventListener('submit',event=>{if(event.submitter?.value!=='save')return;settings.level=$('level-select').value;settings.duration=$('duration-select').value;settings.response=Number($('response-select').value);setSelection({base:Number($('shruthi-select').value),raga:$('raga-select').value});toast('Your practice settings are saved.');});
 $('help-open').onclick=()=>$('help-dialog').showModal();
 $('drone-toggle').onclick=async()=>{if(busy()){toast('The drone is paused during pitch evaluation. Try it between exercises.');return;}try{drone=!drone;await sound.toggleDrone(settings.base,drone);updateDroneButton();}catch{drone=false;updateDroneButton();toast('Audio could not start. Try again.');}};
@@ -367,7 +377,7 @@ document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>showView(b.dat
 document.querySelector('.brand').onclick=e=>{e.preventDefault();showView('practice');};
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();stopComparison();tools?.stop();session?.stop();sarali?.stop();sound.stopDrone();drone=false;updateDroneButton();}});
 window.addEventListener('pagehide',()=>{stopComparison();session?.stop();sarali?.stop();sound.shutdown();});
-tools=createTools({sound,getSettings:()=>settings,getNotes:()=>SWARAS,onSelection:setSelection});
+tools=createTools({sound,getSettings:()=>settings,getNotes:()=>RAGA_NOTES,onSelection:setSelection});
 session=createPracticeSession({sound,getSettings:()=>settings,onSelection:setSelection});
 sarali=createSaraliVarasai({sound,getSettings:()=>settings,onSelection:setSelection});
 updateConfig();syncPath();renderExercise();

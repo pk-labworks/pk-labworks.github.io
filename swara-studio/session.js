@@ -1,4 +1,4 @@
-import {RAGAS} from './music.js?v=20261123-1';
+import {RAGAS,practiceSwaras} from './music.js?v=20261123-3';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
 
@@ -7,7 +7,7 @@ const digit=letter=>({'₁':'1','₂':'2','₃':'3'})[letter]||letter;
 const sequenceTokens=text=>text.replace(/upper\s+sa/gi,'UpperSa').replace(/[₁₂₃]/g,digit).split(/[\s,;|]+/).filter(Boolean);
 
 export function parseSwaraSequence(text,raga){
-  const notes=raga.notes;
+  const notes=practiceSwaras(raga);
   const tokens=sequenceTokens(text);
   if(!tokens.length)throw new Error('Enter at least one swara.');
   if(tokens.length>64)throw new Error('Use 64 swaras or fewer in one session.');
@@ -17,12 +17,12 @@ export function parseSwaraSequence(text,raga){
       return null;
     }
     const token=raw.toUpperCase().replace(/[’‘]/g,"'");
-    if(/^(UPPERSA|S['^+.]|SA['^+.])$/.test(token))return notes.length-1;
+    if(/^(UPPERSA|S['^+.]|SA['^+.])$/.test(token))return notes.findIndex(note=>note.offset===12);
     if(token==='S'||token==='SA')return 0;
-    const match=token.match(/^(R|RI|G|GA|M|MA|P|PA|D|DA|N|NI)([123])?$/);
+    const match=token.match(/^(R|RI|G|GA|M|MA|P|PA|D|DA|N|NI)([123])?([_'])?$/);
     if(!match)throw new Error(`“${raw}” at position ${position+1} is not a swara. Use the swaras shown below.`);
-    const letter=match[1][0],variant=match[2];
-    const index=notes.findIndex(note=>note.offset!==12&&note.variant[0]===letter&&(!variant||note.variant.slice(1).replace(/[₁₂₃]/g,digit)===variant));
+    const letter=match[1][0],variant=match[2],register=match[3]==='_'?'lower':match[3]==="'"?'upper':'middle';
+    const index=notes.findIndex(note=>note.register===register&&note.variant[0]===letter&&(!variant||note.variant.slice(1).replace(/[₁₂₃]/g,digit)===variant));
     if(index<0)throw new Error(`“${raw}” is not in ${raga.name}. Choose swaras shown below.`);
     return index;
   });
@@ -42,7 +42,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
   const $=id=>host.querySelector(`#${id}`);
   const save=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch{}};
   const swaraLabel=note=>note.offset===12?'Upper Sa':note.name+note.variant.slice(1);
-  const code=note=>note.offset===12?"S'":note.variant.replace(/[₁₂₃]/g,digit);
+  const code=note=>note.offset===12?"S'":note.variant.replace(/[₁₂₃]/g,digit)+(note.register==='lower'?'_':note.register==='upper'?"'":'');
 
   function render(){
     host.innerHTML=`<div class="session-heading"><p class="eyebrow">YOUR PRACTICE SESSION</p><h1>Build your own phrases.</h1><p id="session-source" class="session-source" hidden></p></div>
@@ -50,9 +50,9 @@ export function createPracticeSession({sound,getSettings,onSelection}){
         ${selectionFields('session',state)}
         <label>Tempo (BPM)<input id="session-tempo" type="number" min="30" max="180" step="1" inputmode="numeric"></label>
       </div><label class="session-notes-label" for="session-notes">Swaras</label>
-      <textarea id="session-notes" rows="3" spellcheck="false" placeholder="S R2 G3 P D2 S'&#10;S' D2 P G3 R2 S"></textarea>
+      <textarea id="session-notes" rows="3" spellcheck="false" placeholder="P_ D2_ S R2 G3 P&#10;S' R2' G3' P' G3' R2'"></textarea>
       <div id="session-swatches" class="session-swatches" aria-label="Add a swara"></div>
-      <p class="field-note">Put each line on a new row. One beat per swara or hold (~). S' means Upper Sa.</p>
+      <p class="field-note">Put each line on a new row. One beat per swara or hold (~). Use _ for lower notes (P_) and ' for upper notes (S', R2').</p>
       <p id="session-error" class="session-error" role="alert" hidden></p>
       <div class="session-actions"><button id="session-play" class="primary-button" type="button">Play and sing <span aria-hidden="true">→</span></button><button id="session-stop" class="secondary-button" type="button" disabled>Stop</button><label class="session-mic-label"><input id="session-mic" type="checkbox" checked> Show my sung note</label></div>
       <p id="session-status" class="session-status" role="status">Listen to each line, then sing it for the same number of beats.</p>
@@ -70,7 +70,8 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     if(state.source){$('session-source').textContent=state.source;$('session-source').hidden=false;}
   }
   function renderSwatches(){
-    $('session-swatches').innerHTML=RAGAS[state.raga].notes.map(note=>`<button type="button" data-code="${code(note)}" aria-label="Add ${swaraLabel(note)}">${code(note)}</button>`).join('');
+    const notes=practiceSwaras(RAGAS[state.raga]);
+    $('session-swatches').innerHTML=['lower','middle','upper'].map(register=>`<div class="session-swatch-group"><span>${register==='middle'?'Middle octave':register==='lower'?'Lower Pa–Sa':'Upper Sa–Pa'}</span>${notes.filter(note=>note.register===register).map(note=>`<button type="button" data-code="${code(note)}" aria-label="Add ${swaraLabel(note)}">${code(note)}</button>`).join('')}</div>`).join('');
   }
   function readLines(){
     if(!Number.isInteger(state.tempo)||state.tempo<30||state.tempo>180)throw new Error('Choose a tempo from 30 to 180 BPM.');
@@ -83,7 +84,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
   function refreshPreview(){
     if(!running){$('session-current').textContent='—';$('session-progress-fill').style.width='0';$('session-heard').textContent='Your note: —';$('session-status').textContent='Listen to each line, then sing it for the same number of beats.';}
     try{
-      const lines=readLines(),notes=RAGAS[state.raga].notes;
+      const lines=readLines(),notes=practiceSwaras(RAGAS[state.raga]);
       $('session-error').hidden=true;
       $('session-sequence').innerHTML=lines.map((line,lineIndex)=>`<div class="session-score-line"><b>Line ${lineIndex+1}</b>${line.indices.map((i,n)=>`<span data-line="${lineIndex}" data-beat="${n}">${line.tokens[n]==='~'?'Hold '+swaraLabel(notes[i]):swaraLabel(notes[i])}</span>`).join('')}</div>`).join('');
       const beats=lines.reduce((sum,line)=>sum+line.indices.length,0);
@@ -109,7 +110,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     $('session-error').hidden=true;$('session-play').disabled=true;$('session-stop').disabled=false;
     for(const id of ['session-base','session-raga','session-tempo','session-notes','session-mic'])$(id).disabled=true;
     $('session-status').textContent='Preparing your phrase…';
-    const notes=RAGAS[state.raga].notes;
+    const notes=practiceSwaras(RAGAS[state.raga]);
     try{
       await sound.unlock();
       if(token!==runId)return;
