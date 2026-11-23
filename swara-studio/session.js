@@ -3,6 +3,7 @@ import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
 
 const STORAGE_KEY='swara-studio-custom-session-v1';
+const MAX_BEATS=128;
 const digit=letter=>({'₁':'1','₂':'2','₃':'3'})[letter]||letter;
 const sequenceTokens=text=>text.replace(/upper\s+sa/gi,'UpperSa').replace(/[₁₂₃]/g,digit).split(/[\s,;|]+/).filter(Boolean);
 
@@ -10,7 +11,7 @@ export function parseSwaraSequence(text,raga){
   const notes=practiceSwaras(raga);
   const tokens=sequenceTokens(text);
   if(!tokens.length)throw new Error('Enter at least one swara.');
-  if(tokens.length>64)throw new Error('Use 64 swaras or fewer in one session.');
+  if(tokens.length>MAX_BEATS)throw new Error(`Use ${MAX_BEATS} swaras or fewer in one session.`);
   const sequence=tokens.map((raw,position)=>{
     if(raw==='~'){
       if(position===0)throw new Error('A hold (~) needs a swara before it.');
@@ -78,7 +79,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     const rows=state.notes.split(/\r?\n/).map(row=>row.trim()).filter(Boolean);
     if(!rows.length)throw new Error('Enter at least one line of swaras.');
     const lines=rows.map(row=>({indices:parseSwaraSequence(row,RAGAS[state.raga]),tokens:sequenceTokens(row)}));
-    if(lines.reduce((count,line)=>count+line.indices.length,0)>64)throw new Error('Use 64 beats or fewer in one session.');
+    if(lines.reduce((count,line)=>count+line.indices.length,0)>MAX_BEATS)throw new Error(`Use ${MAX_BEATS} beats or fewer in one session.`);
     return lines;
   }
   function refreshPreview(){
