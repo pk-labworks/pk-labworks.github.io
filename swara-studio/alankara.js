@@ -1,6 +1,5 @@
 import {RAGAS} from './music.js?v=20261123-3';
 import {selectionFields} from './selection.js?v=20261122-8';
-import {adaptNotationLine} from './sarali.js?v=20261123-8';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261123-6';
 
@@ -97,17 +96,32 @@ export const ALANKARAS=[
     n d , p m , g r s`)}
 ];
 
+const noteCode=note=>note.offset===12?"S'":note.variant.replace(/[₁₂₃]/g,digit=>({'₁':'1','₂':'2','₃':'3'})[digit]);
+const sourceDegrees='srgmpdnS';
+
+function adaptAlankaraLine(line,raga,shift){
+  return line.split('|').map(bar=>bar.trim().split(/\s+/).map(token=>{
+    if(token===',')return {code:'~',label:'—',hold:true};
+    const degree=sourceDegrees.indexOf(token);
+    if(degree<0)throw new Error(`Unknown Alankara swara: ${token}.`);
+    const note=raga.notes[Math.max(0,Math.min(raga.notes.length-1,degree+shift))];
+    return {code:noteCode(note),label:note.offset===12?'Ṡ':note.variant,hold:false};
+  }));
+}
+
 export function alankaraPattern(ragaId,index){
   const raga=RAGAS[ragaId],pattern=ALANKARAS[index];
   if(!raga||!pattern)throw new Error('Choose an Alankara pattern.');
-  const lines=pattern.lines.map(line=>adaptNotationLine(line,raga));
+  const sourceHalf=pattern.lines.length/2,octaveDegrees=raga.notes.length-1;
+  const lineCount=Math.max(1,sourceHalf-(7-octaveDegrees));
+  const ascending=pattern.lines.slice(0,lineCount).map(line=>adaptAlankaraLine(line,raga,0));
+  const descending=pattern.lines.slice(sourceHalf,sourceHalf+lineCount).map(line=>adaptAlankaraLine(line,raga,octaveDegrees-7));
+  const lines=[...ascending,...descending];
   for(const bars of lines){
     if(bars.length!==pattern.groups.length||bars.some((bar,i)=>bar.length!==pattern.groups[i]))throw new Error(`Alankara ${index+1} has an incorrect beat grouping.`);
   }
   return {...pattern,lines,beats:pattern.groups.reduce((sum,count)=>sum+count,0)};
 }
-
-const noteCode=note=>note.offset===12?"S'":note.variant.replace(/[₁₂₃]/g,digit=>({'₁':'1','₂':'2','₃':'3'})[digit]);
 
 export function createAlankaras({sound,getSettings,onSelection}){
   const host=document.getElementById('alankara-view');
@@ -148,7 +162,7 @@ export function createAlankaras({sound,getSettings,onSelection}){
       <p id="alankara-status" class="session-status" role="status">Ready for pattern ${selected+1}.</p>
       ${liveReadoutMarkup('alankara')}
       <div class="session-progress"><i id="alankara-progress-fill"></i></div>
-      <p class="sarali-source">Adapted from “Alankaarams” (lesson 6) in <em>karnATik Beginners’ Lessons Notation</em> (Rani, 2002). Missing swaras become held beats to preserve the taalam.</p></div>`;
+      <p class="sarali-source">Adapted from “Alankaarams” (lesson 6) in <em>karnATik Beginners’ Lessons Notation</em> (Rani, 2002). Patterns follow the selected raga’s swaras through Upper Sa; wide patterns repeat an endpoint when needed to complete the taalam.</p></div>`;
     for(const id of ['alankara-base','alankara-raga'])$(id).onchange=()=>onSelection({base:Number($('alankara-base').value),raga:$('alankara-raga').value});
     host.querySelectorAll('[data-alankara]').forEach(button=>button.onclick=()=>{selected=Number(button.dataset.alankara);render();});
     $('alankara-tempo').oninput=()=>{const value=Number($('alankara-tempo').value);if(Number.isInteger(value)&&value>=30&&value<=180)tempo=value;};

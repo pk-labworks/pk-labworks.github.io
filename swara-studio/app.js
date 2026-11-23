@@ -3,7 +3,7 @@ import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-
 import {createTools} from './tools.js?v=20261122-8';
 import {createPracticeSession} from './session.js?v=20261123-7';
 import {createSaraliVarasai} from './sarali.js?v=20261123-8';
-import {createAlankaras} from './alankara.js?v=20261123-8';
+import {createAlankaras} from './alankara.js?v=20261123-10';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
 const $=id=>document.getElementById(id);
 const sound=new SoundEngine();
