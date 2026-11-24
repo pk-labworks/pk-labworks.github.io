@@ -2,7 +2,7 @@ import {RAGA_LIST,RAGAS,DEFAULT_RAGA,practiceSwaras,swaraHz as swaraHzFor,noteNa
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 import {createTools} from './tools.js?v=20261122-8';
 import {createPracticeSession} from './session.js?v=20261123-7';
-import {createSaraliVarasai} from './sarali.js?v=20261123-8';
+import {createSaraliVarasai} from './sarali.js?v=20261124-1';
 import {createAlankaras} from './alankara.js?v=20261123-10';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
 const $=id=>document.getElementById(id);

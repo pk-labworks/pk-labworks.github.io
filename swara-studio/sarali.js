@@ -3,8 +3,8 @@ import {selectionFields} from './selection.js?v=20261122-8';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261123-6';
 
-// The source lesson uses seven scale degrees. Missing degrees become holds so
-// five-note ragas keep the same eight-beat Aadi taalam shape.
+// The source lesson uses seven scale degrees. In five-note ragas, omitted
+// swaras move their beats to the end of each line so Aadi taalam stays intact.
 const PATTERNS=[
   ['s r g m | p d | n S','S n d p | m g | r s'],
   ['s r - s r - | s r | g m','s r g m | p d | n S','S n - S n - | S n | d p','S n d p | m g | r s'],
@@ -23,15 +23,38 @@ const PATTERNS=[
 ];
 
 const code=note=>note.offset===12?"S'":note.variant.replace(/[₁₂₃]/g,n=>({'₁':'1','₂':'2','₃':'3'})[n]);
+const noteForToken=(token,raga)=>token==='S'?raga.notes.at(-1):raga.notes.find(item=>item.offset!==12&&item.variant[0].toLowerCase()===token);
+const hold=()=>({code:'~',label:'—',hold:true});
+
+function adaptFiveNoteLine(line,raga){
+  const bars=line.split('|').map(bar=>bar.trim().split(/\s+/).filter(token=>token!=='-'));
+  const beats=[];
+  let sourceNote=null;
+  for(const bar of bars)for(const token of bar){
+    if(token===','){
+      if(sourceNote&&noteForToken(sourceNote,raga))beats.push(hold());
+      continue;
+    }
+    sourceNote=token;
+    const note=noteForToken(token,raga);
+    if(note)beats.push({code:code(note),label:note.offset===12?'Ṡ':note.variant,hold:false});
+  }
+  const total=bars.reduce((sum,bar)=>sum+bar.length,0);
+  if(!beats.some(beat=>!beat.hold))throw new Error('A Sarali Varasai line has no notes in this raga.');
+  while(beats.length<total)beats.push(hold());
+  let offset=0;
+  return bars.map(bar=>{const section=beats.slice(offset,offset+bar.length);offset+=bar.length;return section;});
+}
 
 export function adaptNotationLine(line,raga){
+  if(raga.notes.length===6)return adaptFiveNoteLine(line,raga);
   let previous=null;
   return line.split('|').map(bar=>bar.trim().split(/\s+/).flatMap(token=>{
     if(token==='-')return [];
-    if(token===',')return previous?[{code:'~',label:'—',hold:true}]:[];
-    const note=token==='S'?raga.notes.at(-1):raga.notes.find(item=>item.offset!==12&&item.variant[0].toLowerCase()===token);
+    if(token===',')return previous?[hold()]:[];
+    const note=noteForToken(token,raga);
     if(!note){
-      if(previous)return [{code:'~',label:'—',hold:true}];
+      if(previous)return [hold()];
       const degrees='srgmpdn',target=degrees.indexOf(token);
       const nearest=raga.notes.filter(item=>item.offset!==12).sort((a,b)=>Math.abs(degrees.indexOf(a.variant[0].toLowerCase())-target)-Math.abs(degrees.indexOf(b.variant[0].toLowerCase())-target))[0];
       previous=nearest;
@@ -85,7 +108,7 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
       <p id="sarali-status" class="session-status" role="status">Ready for pattern ${selected+1}.</p>
       ${liveReadoutMarkup('sarali')}
       <div class="session-progress"><i id="sarali-progress-fill"></i></div>
-      <p class="sarali-source">Adapted from “Sarali Varisai” in <em>karnATik Beginners’ Lessons Notation</em> (Rani, 2002). Missing swaras are held for one beat in five-note ragas.</p></div>`;
+      <p class="sarali-source">Adapted from “Sarali Varisai” in <em>karnATik Beginners’ Lessons Notation</em> (Rani, 2002). In five-note ragas, skipped swaras extend the final note of each line.</p></div>`;
     for(const id of ['sarali-base','sarali-raga'])host.querySelector(`#${id}`).onchange=()=>onSelection({base:Number(host.querySelector('#sarali-base').value),raga:host.querySelector('#sarali-raga').value});
     host.querySelectorAll('[data-pattern]').forEach(button=>button.onclick=()=>{selected=Number(button.dataset.pattern);render();});
     $('sarali-tempo').onchange=()=>{const value=Number($('sarali-tempo').value);tempo=Number.isInteger(value)?Math.max(30,Math.min(180,value)):50;$('sarali-tempo').value=tempo;};
