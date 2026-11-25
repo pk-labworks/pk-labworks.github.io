@@ -105,7 +105,7 @@ function renderExercise(newSequence=true){
   $('target-western').textContent=concealed?senseOrder():isMemory()?'':noteReadout(reference[0]);
   $('sequence').hidden=count===1&&!concealed;
   $('sequence').innerHTML=targets.map(i=>`<span>${concealed?'?':SWARAS[i].name}</span>`).join('');
-  $('duration-caption').textContent=concealed?`Base Sa + ${count} ${count===1?'swara':'swaras'} · ${referenceDuration()}s each`:isMemory()?`Sa plays ${referenceDuration()}s · ${settings.response}s${count>1?' / note':''} singing`:`${referenceDuration()}s per reference swara · ${settings.response}s${count>1?' / note':''} singing`;
+  $('duration-caption').textContent=concealed?`Base Sa + ${count} ${count===1?'swara':'swaras'} · ${referenceDuration()}s each`:isMemory()?`Sa plays ${referenceDuration()}s · ${settings.response}s${count>1?' / note':''} singing`:`Base Sa + ${count} ${count===1?'swara':'swaras'} · ${referenceDuration()}s each · ${settings.response}s${count>1?' / note':''} singing`;
   $('exercise-panel').classList.remove('show-result','memory-result');$('answer-options').hidden=true;$('feedback').hidden=true;answers=[];setPhase('idle',idlePrompt());resetReadings();resetRecallFill();
 }
 function resetRecallFill(){
@@ -152,15 +152,17 @@ async function countDown(seconds,label,signal){const start=performance.now();whi
 async function playReferences(indices,signal,conceal=false){
   throwIfAborted(signal);
   const duration=referenceDuration();
-  setPhase('reference',conceal?'Listen to base Sa.':'Listen to the reference.');
+  const anchored=conceal||mode==='sing';
+  setPhase('reference',anchored?'Listen to base Sa.':'Listen to the reference.');
   try{
-    if(conceal){
+    if(anchored){
       $('note-kicker').textContent='BASE SA';$('target-name').textContent='Sa';$('target-western').textContent='Your base note.';
       sound.reference(settings.base,duration);
       await countDown(duration,'Base Sa.',signal);
       await wait(250,signal);
       throwIfAborted(signal);
-      $('note-kicker').textContent='HEAR SA FIRST';$('target-name').textContent='?';$('target-western').textContent=senseOrder();
+      if(conceal){$('note-kicker').textContent='HEAR SA FIRST';$('target-name').textContent='?';$('target-western').textContent=senseOrder();}
+      else $('note-kicker').textContent='YOUR REFERENCE';
     }
     for(let n=0;n<indices.length;n++){
       throwIfAborted(signal);
