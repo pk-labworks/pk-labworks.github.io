@@ -316,6 +316,7 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 .session-results{margin-top:16px;padding:16px 18px;border:1px solid #c8d9c2;border-radius:5px;background:#eff5eb;color:#355e3b}
 .session-results h2{font:25px/1.2 var(--serif);margin-bottom:5px}
 .session-results>p{font-size:11px;line-height:1.5}
+.session-results>.primary-button{margin-top:12px}
 .session-result-lines{display:grid;gap:7px;margin:14px 0}
 .session-result-lines>div{display:flex;align-items:baseline;justify-content:space-between;gap:10px;border-bottom:1px solid #d4e2ce;padding-bottom:6px;font-size:11px}
 .session-result-lines strong{white-space:nowrap}

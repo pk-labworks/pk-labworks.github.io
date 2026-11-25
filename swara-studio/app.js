@@ -1,9 +1,9 @@
 import {RAGA_LIST,RAGAS,DEFAULT_RAGA,practiceSwaras,swaraHz as swaraHzFor,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261123-3';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 import {createTools} from './tools.js?v=20261122-8';
-import {createPracticeSession} from './session.js?v=20261125-3';
-import {createSaraliVarasai} from './sarali.js?v=20261125-3';
-import {createAlankaras} from './alankara.js?v=20261125-3';
+import {createPracticeSession} from './session.js?v=20261125-4';
+import {createSaraliVarasai} from './sarali.js?v=20261125-4';
+import {createAlankaras} from './alankara.js?v=20261125-4';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
 const $=id=>document.getElementById(id);
 const sound=new SoundEngine();
