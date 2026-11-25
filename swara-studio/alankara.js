@@ -2,6 +2,7 @@ import {RAGAS} from './music.js?v=20261123-3';
 import {selectionFields} from './selection.js?v=20261122-8';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261123-6';
+import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261125-1';
 
 const rows=text=>text.trim().split('\n').map(line=>line.trim());
 export const ALANKARAS=[
@@ -157,11 +158,13 @@ export function createAlankaras({sound,getSettings,onSelection}){
       <label class="sarali-tempo-label">Tempo (BPM) <input id="alankara-tempo" type="number" min="30" max="180" step="1" value="${tempo}"></label>
       <div class="alankara-picker" role="group" aria-label="Alankara patterns">${ALANKARAS.map((item,i)=>`<button type="button" data-alankara="${i}" aria-pressed="${i===selected}"><span>${String(i+1).padStart(2,'0')}</span><strong>${item.short}</strong></button>`).join('')}</div>
       <div class="alankara-meta"><strong>${pattern.name}</strong><span>${pattern.beats} beats · ${pattern.groups.join(' + ')}</span></div>
-      <div class="sarali-score alankara-score"><h2>Pattern ${String(selected+1).padStart(2,'0')}</h2>${pattern.lines.map((bars,lineIndex)=>`<div class="sarali-score-line" data-alankara-line="${lineIndex}"><span class="sarali-line-number">${lineIndex+1}</span>${bars.map((bar,barIndex)=>`<span class="sarali-bar">${bar.map((beat,beatIndex)=>`<span class="${beat.hold?'hold':''}" data-alankara-beat="${bars.slice(0,barIndex).reduce((sum,part)=>sum+part.length,0)+beatIndex}" aria-label="${beat.hold?'Hold previous swara':beat.label}">${beat.label}</span>`).join('')}</span>`).join('')}</div>`).join('')}</div>
       <div class="sarali-actions"><button id="alankara-practice" class="primary-button" type="button">Play and sing pattern</button><button id="alankara-next" class="secondary-button" type="button" hidden>Next alankara →</button></div>
       <p id="alankara-status" class="session-status" role="status">Ready for pattern ${selected+1}.</p>
-      ${liveReadoutMarkup('alankara')}
-      <div class="session-progress"><i id="alankara-progress-fill"></i></div>
+      <div id="alankara-stage" class="session-stage pattern-stage"><div class="session-stage-top"><span class="label">CURRENT SWARA</span><span id="alankara-count">${pattern.lines.length} lines</span></div><strong id="alankara-current">—</strong>
+      <div class="sarali-score alankara-score"><h2>Pattern ${String(selected+1).padStart(2,'0')}</h2>${pattern.lines.map((bars,lineIndex)=>`<div class="sarali-score-line" data-alankara-line="${lineIndex}"><span class="sarali-line-number">${lineIndex+1}</span>${bars.map((bar,barIndex)=>`<span class="sarali-bar">${bar.map((beat,beatIndex)=>`<span class="${beat.hold?'hold':''}" data-alankara-beat="${bars.slice(0,barIndex).reduce((sum,part)=>sum+part.length,0)+beatIndex}" aria-label="${beat.hold?'Hold previous swara':beat.label}">${beat.label}</span>`).join('')}</span>`).join('')}</div>`).join('')}</div>
+      <div id="alankara-line-feedback" class="pattern-line-feedback" role="status" aria-live="polite" hidden></div>
+      ${liveReadoutMarkup('alankara')}<div class="session-progress"><i id="alankara-progress-fill"></i></div></div>
+      <div id="alankara-results" class="session-results" hidden></div>
       <p class="sarali-source">Adapted from “Alankaarams” (lesson 6) in <em>karnATik Beginners’ Lessons Notation</em> (Rani, 2002). Patterns follow the selected raga’s swaras through Upper Sa; wide patterns repeat an endpoint when needed to complete the taalam.</p></div>`;
     for(const id of ['alankara-base','alankara-raga'])$(id).onchange=()=>onSelection({base:Number($('alankara-base').value),raga:$('alankara-raga').value});
     host.querySelectorAll('[data-alankara]').forEach(button=>button.onclick=()=>{selected=Number(button.dataset.alankara);render();});
@@ -189,19 +192,25 @@ export function createAlankaras({sound,getSettings,onSelection}){
     });
     segments.forEach(({midi,beatIndex,beats})=>sound.scheduleReference(midi,startAt+beatIndex*beat,beats*beat));
   }
-  async function runPhase({lineIndex,beats,phase,beat,base,totalBeats,completedBeats,token,startAt}){
-    const duration=beats.length*beat;
+  async function runPhase({lineIndex,beats,phase,attempt,beat,base,lineCount,token,startAt}){
+    const duration=beats.length*beat,samples=[];
+    let lastLabel='—';
+    const cueLabels=beats.map(item=>item.hold?lastLabel:(lastLabel=item.label));
     showLineWindow(lineIndex);
-    if(phase==='listen'){clearLiveReadout(host,'alankara');previousMidi=null;lastVoiceAt=0;}
+    if(phase==='listen'){clearLiveReadout(host,'alankara');previousMidi=null;lastVoiceAt=0;$('alankara-line-feedback').hidden=true;}
     const animate=()=>{
       if(!running||token!==runId)return;
       const now=sound.ctx.currentTime,elapsed=Math.max(0,now-startAt),current=Math.min(beats.length-1,Math.floor(elapsed/beat));
-      $('alankara-status').textContent=`${phase==='listen'?'Listen to':'Sing'} line ${lineIndex+1} of ${totalBeats.lines}.`;
-      $('alankara-progress-fill').style.width=`${Math.min(100,100*(completedBeats+elapsed/beat)/(totalBeats.beats*2))}%`;
+      $('alankara-current').textContent=cueLabels[current];
+      $('alankara-count').textContent=`Line ${lineIndex+1} of ${lineCount} · ${phase==='listen'?'Listen':'Sing'}${micActive?` · try ${attempt} of 3`:''}`;
+      $('alankara-status').textContent=`${phase==='listen'?'Listen to':'Sing'} line ${lineIndex+1} of ${lineCount}${micActive?` · try ${attempt} of 3`:''}.`;
+      const phaseProgress=phase==='listen'?.5*Math.min(1,elapsed/duration):.5+.5*Math.min(1,elapsed/duration);
+      $('alankara-progress-fill').style.width=`${100*(lineIndex+phaseProgress)/lineCount}%`;
       host.querySelectorAll('[data-alankara-beat]').forEach(note=>note.classList.toggle('current-beat',Number(note.closest('[data-alankara-line]').dataset.alankaraLine)===lineIndex&&Number(note.dataset.alankaraBeat)===current));
-      if(phase==='sing'&&micActive&&now>=startAt&&now-lastMicSample>=.07){
+      if(phase==='sing'&&micActive&&now>=startAt&&now-lastMicSample>=.06){
         lastMicSample=now;sound.analyser.getFloatTimeDomainData(micBuffer);
         const hz=detectLivePitch(micBuffer,sound.ctx.sampleRate);
+        samples.push({t:elapsed,hz:hz||null});
         if(hz){previousMidi=showLiveReadout(host,'alankara',hz,base,previousMidi);lastVoiceAt=now;}
         else if(now-lastVoiceAt>.7){clearLiveReadout(host,'alankara');previousMidi=null;}
       }
@@ -209,32 +218,50 @@ export function createAlankaras({sound,getSettings,onSelection}){
     };
     frame=requestAnimationFrame(animate);
     try{await waitUntil(startAt+duration,token);}finally{cancelAnimationFrame(frame);frame=0;}
+    return samples;
   }
   async function start(){
-    const settings=getSettings(),pattern=alankaraPattern(settings.raga,selected),lines=pattern.lines.map(bars=>bars.flat()),notesByCode=new Map(RAGAS[settings.raga].notes.map(note=>[noteCode(note),note]));
+    const settings=getSettings(),raga=RAGAS[settings.raga],pattern=alankaraPattern(settings.raga,selected),lines=pattern.lines.map(bars=>bars.flat()),notesByCode=new Map(raga.notes.map(note=>[noteCode(note),note]));
     stop();const token=++runId;
-    $('alankara-next').hidden=true;$('alankara-practice').textContent='Preparing…';$('alankara-practice').disabled=true;
+    $('alankara-next').hidden=true;$('alankara-line-feedback').hidden=true;$('alankara-results').hidden=true;
+    $('alankara-progress-fill').style.width='0';$('alankara-practice').textContent='Preparing…';$('alankara-practice').disabled=true;
     $('alankara-status').textContent='Preparing your pattern…';
     host.querySelectorAll('[data-alankara],#alankara-base,#alankara-raga,#alankara-tempo').forEach(el=>el.disabled=true);
     try{
       await sound.unlock();if(token!==runId)return;
       try{await sound.microphone();if(token!==runId){sound.releaseMic();return;}sound.analyser.fftSize=4096;micBuffer=new Float32Array(4096);micActive=true;previousMidi=null;}
       catch{if(token!==runId)return;}
-      const beat=60/tempo,total={lines:lines.length,beats:lines.reduce((sum,line)=>sum+line.length,0)};
+      const beat=60/tempo,tolerance=({beginner:35,intermediate:25,advanced:15})[settings.level]||35,results=[];
       running=true;$('alankara-practice').disabled=false;$('alankara-practice').textContent='Stop pattern';
-      let completedBeats=0;
+      $('alankara-stage').scrollIntoView({block:'center'});
       for(let lineIndex=0;lineIndex<lines.length;lineIndex++){
-        const beats=lines[lineIndex],refStart=sound.ctx.currentTime+.1;
-        scheduleLine(beats,notesByCode,settings.base,beat,refStart);
-        await runPhase({lineIndex,beats,phase:'listen',beat,base:settings.base,totalBeats:total,completedBeats,token,startAt:refStart});
-        completedBeats+=beats.length;
-        await waitUntil(sound.ctx.currentTime+.25,token);
-        const singStart=sound.ctx.currentTime+.1;
-        await runPhase({lineIndex,beats,phase:'sing',beat,base:settings.base,totalBeats:total,completedBeats,token,startAt:singStart});
-        completedBeats+=beats.length;
+        const beats=lines[lineIndex],attempts=[];
+        for(let attempt=1;attempt<=(micActive?3:1);attempt++){
+          const refStart=sound.ctx.currentTime+.1;
+          scheduleLine(beats,notesByCode,settings.base,beat,refStart);
+          await runPhase({lineIndex,beats,phase:'listen',attempt,beat,base:settings.base,lineCount:lines.length,token,startAt:refStart});
+          await waitUntil(sound.ctx.currentTime+.25,token);
+          const singStart=sound.ctx.currentTime+.1;
+          const samples=await runPhase({lineIndex,beats,phase:'sing',attempt,beat,base:settings.base,lineCount:lines.length,token,startAt:singStart});
+          if(micActive){
+            const result=scorePatternLine(samples,beats,beat,settings.base,raga.notes,tolerance,noteCode);
+            attempts.push(result);
+            $('alankara-line-feedback').innerHTML=lineFeedbackMarkup(lineIndex,attempt,result,raga.notes);
+            $('alankara-line-feedback').hidden=false;
+            await waitUntil(sound.ctx.currentTime+1.2,token);
+            if(!shouldRetryPatternLine(result.score,attempt))break;
+          }else{
+            $('alankara-line-feedback').innerHTML=`<strong>Line ${lineIndex+1} complete</strong><p>Allow microphone access for a score.</p>`;
+            $('alankara-line-feedback').hidden=false;
+            await waitUntil(sound.ctx.currentTime+1.2,token);
+          }
+        }
+        results.push({attempts});
       }
       stop('Pattern complete. Continue with the next alankara or replay this one.');
       $('alankara-progress-fill').style.width='100%';showLineWindow(lines.length-1);$('alankara-next').hidden=false;
+      $('alankara-results').innerHTML=patternSummaryMarkup(results,raga.notes,tolerance);$('alankara-results').hidden=false;
+      $('alankara-results').scrollIntoView({block:'nearest'});
     }catch(error){if(token!==runId||error.name==='AbortError')return;stop(error.message||'The pattern could not start.');}
   }
   render();

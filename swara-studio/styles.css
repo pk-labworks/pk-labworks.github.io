@@ -368,8 +368,19 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 .sarali-tempo-label{display:grid;gap:5px;width:145px;margin-bottom:18px;font-size:11px;font-weight:700;color:#4b6748}
 .sarali-tempo-label input{height:38px;border:1px solid #cbd7c5;border-radius:4px;padding:0 10px;background:#fff;color:#294b2c}
 .sarali-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.pattern-line-feedback{display:flex;align-items:baseline;flex-wrap:wrap;gap:5px 12px;margin:10px 0;padding:10px 13px;border:1px solid #c8d9c2;border-radius:5px;background:#eff5eb;color:#355e3b;font-size:11px}
+.pattern-line-feedback strong{font-size:14px}
+.pattern-line-feedback span{color:#61775e}
+.pattern-line-feedback p{flex-basis:100%;line-height:1.4}
+.pattern-line-feedback[hidden],.sarali-score-line[hidden],.session-score-line[hidden],.session-results[hidden]{display:none}
+.sarali-panel>.session-results{margin:12px 0}
 .sarali-score-line.current{background:#eaf3e4;border-radius:4px}
-.sarali-panel>.session-progress{max-width:550px;margin-top:12px}
+.pattern-stage{margin:10px 0 0;padding:15px 18px}
+.pattern-stage .session-stage-top{justify-content:flex-start;gap:12px;flex-wrap:wrap}
+.pattern-stage .sarali-score{margin:12px 0 0;background:#fff;padding:10px 13px}
+.pattern-stage .sarali-score h2{font-size:18px;margin-bottom:5px}
+.pattern-stage .line-live-readout{margin-top:10px}
+.pattern-stage>.session-progress{max-width:550px;margin-top:12px}
 .sarali-picker{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:5px;margin:0 0 22px}
 .sarali-picker button{height:34px;border:1px solid #cbd7c5;border-radius:4px;background:#f2f5ed;color:#53704f;font:11px var(--mono)}
 .sarali-picker button[aria-pressed=true]{background:var(--green);border-color:var(--green);color:#fff;font-weight:700}
@@ -390,7 +401,7 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 .alankara-meta{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:9px;color:var(--green)}
 .alankara-meta strong{font:22px/1.2 var(--serif)}
 .alankara-meta span{font:11px var(--mono);white-space:nowrap}
-.alankara-score .sarali-bar>span.current-beat{background:#d3e9ca;border-radius:3px;color:#244a2b;font-weight:700}
+.sarali-score .sarali-bar>span.current-beat{background:var(--green);border-radius:3px;color:#fff;font-weight:700}
 @media(max-width:720px){.alankara-picker{grid-template-columns:repeat(2,minmax(0,1fr))}.alankara-meta{flex-direction:column;gap:3px}}
 @media(max-width:720px){.sarali-panel{padding:17px}.sarali-top{gap:12px}.sarali-top>div{min-width:95px}.sarali-top strong{font-size:17px}.sarali-top button{margin-left:0}.sarali-picker{grid-template-columns:repeat(7,minmax(0,1fr))}.sarali-score{padding:13px}.sarali-bar>span{min-width:24px;font-size:12px}.sarali-score-line{gap:5px}}
 

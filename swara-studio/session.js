@@ -54,7 +54,7 @@ export function saveExerciseRecord(exercises,record){
   return next;
 }
 
-export const shouldRepeatLine=(firstScore,attempt)=>firstScore<60&&attempt<3;
+export const shouldRepeatLine=(score,attempt)=>score<60&&attempt<3;
 
 export function createPracticeSession({sound,getSettings,onSelection}){
   const host=document.getElementById('session-view');
@@ -267,7 +267,6 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       $('session-stage').scrollIntoView({block:'center'});
       for(let lineIndex=0;lineIndex<lines.length;lineIndex++){
         const line=lines[lineIndex],attempts=[];
-        let firstScore=null;
         for(let attempt=1;attempt<=(scored?3:1);attempt++){
           const refStart=sound.ctx.currentTime+.1;
           scheduleLine(line,notes,beat,refStart);
@@ -281,8 +280,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
           if(scored){
             const result=scorePhraseLine(samples,line.indices,beat,state.base,notes,tolerance);
             attempts.push(result);
-            if(firstScore===null)firstScore=result.score;
-            if(!shouldRepeatLine(firstScore,attempt))break;
+            if(!shouldRepeatLine(result.score,attempt))break;
             $('session-status').textContent=`Line ${lineIndex+1}: ${result.score}%. ${3-attempt} ${attempt===2?'attempt':'attempts'} remaining.`;
             await waitUntil(sound.ctx.currentTime+1,token);
           }

@@ -2,6 +2,7 @@ import {RAGAS} from './music.js?v=20261123-1';
 import {selectionFields} from './selection.js?v=20261122-8';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261123-6';
+import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261125-1';
 
 // The source lesson uses seven scale degrees. In five-note ragas, omitted
 // swaras move their beats to the end of each line so Aadi taalam stays intact.
@@ -88,6 +89,7 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
     if(micActive){sound.releaseMic();micActive=false;micBuffer=null;}
     sound.stopNotes();
     host.querySelectorAll('[data-score-line]').forEach(row=>{row.hidden=false;row.classList.remove('current');});
+    host.querySelectorAll('[data-sarali-beat]').forEach(note=>note.classList.remove('current-beat'));
     clearLiveReadout(host,'sarali');previousMidi=null;
     const play=$('sarali-practice');
     if(play){play.textContent='Play and sing pattern';play.disabled=false;}
@@ -103,76 +105,114 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
       <p class="sarali-instruction">Aadi taalam. Listen to one line, then sing it for the same number of beats.</p>
       <label class="sarali-tempo-label">Tempo (BPM) <input id="sarali-tempo" type="number" min="30" max="180" step="1" value="${tempo}"></label>
       <div class="sarali-picker" role="group" aria-label="Sarali Varasai patterns">${PATTERNS.map((_,i)=>`<button type="button" data-pattern="${i}" aria-pressed="${i===selected}">${String(i+1).padStart(2,'0')}</button>`).join('')}</div>
-      <div class="sarali-score"><h2>Pattern ${String(selected+1).padStart(2,'0')}</h2>${pattern.lines.map((bars,line)=>`<div class="sarali-score-line" data-score-line="${line}"><span class="sarali-line-number">${line+1}</span>${bars.map(bar=>`<span class="sarali-bar">${bar.map(beat=>`<span class="${beat.hold?'hold':''}" aria-label="${beat.hold?'Hold previous swara':beat.label}">${beat.label}</span>`).join('')}</span>`).join('')}</div>`).join('')}</div>
       <div class="sarali-actions"><button id="sarali-practice" class="primary-button" type="button">Play and sing pattern</button><button id="sarali-next" class="secondary-button" type="button" hidden>Next pattern →</button></div>
       <p id="sarali-status" class="session-status" role="status">Ready for pattern ${selected+1}.</p>
-      ${liveReadoutMarkup('sarali')}
-      <div class="session-progress"><i id="sarali-progress-fill"></i></div>
+      <div id="sarali-stage" class="session-stage pattern-stage"><div class="session-stage-top"><span class="label">CURRENT SWARA</span><span id="sarali-count">${pattern.lines.length} lines</span></div><strong id="sarali-current">—</strong>
+      <div class="sarali-score"><h2>Pattern ${String(selected+1).padStart(2,'0')}</h2>${pattern.lines.map((bars,line)=>`<div class="sarali-score-line" data-score-line="${line}"><span class="sarali-line-number">${line+1}</span>${bars.map((bar,barIndex)=>`<span class="sarali-bar">${bar.map((beat,beatIndex)=>`<span class="${beat.hold?'hold':''}" data-sarali-beat="${bars.slice(0,barIndex).reduce((sum,part)=>sum+part.length,0)+beatIndex}" aria-label="${beat.hold?'Hold previous swara':beat.label}">${beat.label}</span>`).join('')}</span>`).join('')}</div>`).join('')}</div>
+      <div id="sarali-line-feedback" class="pattern-line-feedback" role="status" aria-live="polite" hidden></div>
+      ${liveReadoutMarkup('sarali')}<div class="session-progress"><i id="sarali-progress-fill"></i></div></div>
+      <div id="sarali-results" class="session-results" hidden></div>
       <p class="sarali-source">Adapted from “Sarali Varisai” in <em>karnATik Beginners’ Lessons Notation</em> (Rani, 2002). In five-note ragas, skipped swaras extend the final note of each line.</p></div>`;
     for(const id of ['sarali-base','sarali-raga'])host.querySelector(`#${id}`).onchange=()=>onSelection({base:Number(host.querySelector('#sarali-base').value),raga:host.querySelector('#sarali-raga').value});
     host.querySelectorAll('[data-pattern]').forEach(button=>button.onclick=()=>{selected=Number(button.dataset.pattern);render();});
+    $('sarali-tempo').oninput=()=>{const value=Number($('sarali-tempo').value);if(Number.isInteger(value)&&value>=30&&value<=180)tempo=value;};
     $('sarali-tempo').onchange=()=>{const value=Number($('sarali-tempo').value);tempo=Number.isInteger(value)?Math.max(30,Math.min(180,value)):50;$('sarali-tempo').value=tempo;};
     $('sarali-practice').onclick=()=>running?stop('Stopped. Choose a pattern or play again.'):start();
     $('sarali-next').onclick=()=>{selected=(selected+1)%PATTERNS.length;render();};
   }
+  async function waitUntil(time,token){
+    while(sound.ctx.currentTime<time){
+      if(token!==runId)throw new DOMException('Stopped','AbortError');
+      await new Promise(resolve=>setTimeout(resolve,50));
+    }
+    if(token!==runId)throw new DOMException('Stopped','AbortError');
+  }
+  function scheduleLine(beats,raga,base,beat,startAt){
+    const notesByCode=new Map(raga.notes.map(note=>[code(note),note]));
+    const segments=[];
+    beats.forEach((item,beatIndex)=>{
+      if(item.hold&&segments.length)segments.at(-1).beats++;
+      else{
+        const note=notesByCode.get(item.code);
+        if(!note)throw new Error(`The note ${item.code} is not in this raga.`);
+        segments.push({midi:base+note.offset,beatIndex,beats:1});
+      }
+    });
+    segments.forEach(({midi,beatIndex,beats})=>sound.scheduleReference(midi,startAt+beatIndex*beat,beats*beat));
+  }
+  async function runPhase({lineIndex,beats,phase,attempt,beat,base,lineCount,token,startAt}){
+    const duration=beats.length*beat,samples=[];
+    let lastLabel='—';
+    const cueLabels=beats.map(item=>item.hold?lastLabel:(lastLabel=item.label));
+    showLineWindow(lineIndex);
+    if(phase==='listen'){clearLiveReadout(host,'sarali');previousMidi=null;$('sarali-line-feedback').hidden=true;}
+    let lastMic=0,lastVoiceAt=0;
+    const animate=()=>{
+      if(!running||token!==runId)return;
+      const now=sound.ctx.currentTime,elapsed=Math.max(0,now-startAt);
+      const current=Math.min(beats.length-1,Math.floor(elapsed/beat));
+      $('sarali-current').textContent=cueLabels[current];
+      $('sarali-count').textContent=`Line ${lineIndex+1} of ${lineCount} · ${phase==='listen'?'Listen':'Sing'}${micActive?` · try ${attempt} of 3`:''}`;
+      $('sarali-status').textContent=`${phase==='listen'?'Listen to':'Sing'} line ${lineIndex+1} of ${lineCount}${micActive?` · try ${attempt} of 3`:''}.`;
+      const phaseProgress=phase==='listen'?.5*Math.min(1,elapsed/duration):.5+.5*Math.min(1,elapsed/duration);
+      $('sarali-progress-fill').style.width=`${100*(lineIndex+phaseProgress)/lineCount}%`;
+      host.querySelectorAll('[data-sarali-beat]').forEach(note=>note.classList.toggle('current-beat',Number(note.closest('[data-score-line]').dataset.scoreLine)===lineIndex&&Number(note.dataset.saraliBeat)===current));
+      if(phase==='sing'&&micActive&&now>=startAt&&now-lastMic>=.06){
+        lastMic=now;sound.analyser.getFloatTimeDomainData(micBuffer);
+        const hz=detectLivePitch(micBuffer,sound.ctx.sampleRate);
+        samples.push({t:elapsed,hz:hz||null});
+        if(hz){previousMidi=showLiveReadout(host,'sarali',hz,base,previousMidi);lastVoiceAt=now;}
+        else if(now-lastVoiceAt>.7){clearLiveReadout(host,'sarali');previousMidi=null;}
+      }
+      frame=requestAnimationFrame(animate);
+    };
+    frame=requestAnimationFrame(animate);
+    try{await waitUntil(startAt+duration,token);}finally{cancelAnimationFrame(frame);frame=0;}
+    return samples;
+  }
   async function start(){
-    const settings=getSettings(),raga=RAGAS[settings.raga],pattern=saraliPattern(settings.raga,selected);
+    const settings=getSettings(),raga=RAGAS[settings.raga],pattern=saraliPattern(settings.raga,selected),lines=pattern.lines.map(bars=>bars.flat());
     stop();const token=++runId;
-    $('sarali-next').hidden=true;$('sarali-practice').textContent='Preparing…';$('sarali-practice').disabled=true;
+    $('sarali-next').hidden=true;$('sarali-line-feedback').hidden=true;$('sarali-results').hidden=true;
+    $('sarali-progress-fill').style.width='0';$('sarali-practice').textContent='Preparing…';$('sarali-practice').disabled=true;
     $('sarali-status').textContent='Preparing your pattern…';
     host.querySelectorAll('[data-pattern],#sarali-base,#sarali-raga,#sarali-tempo').forEach(el=>el.disabled=true);
     try{
       await sound.unlock();if(token!==runId)return;
-      let micWarning='';
-      try{await sound.microphone();if(token!==runId){sound.releaseMic();return;}sound.analyser.fftSize=4096;micBuffer=new Float32Array(4096);micActive=true;previousMidi=null;}
-      catch{micWarning='Microphone unavailable; the pattern will still play.';}
-      const beat=60/tempo,ctx=sound.ctx,timeline=[],startAt=ctx.currentTime+.15;
-      let cursor=startAt;
-      for(const [lineIndex,bars] of pattern.lines.entries()){
-        const beats=bars.flat(),duration=beats.length*beat;
-        timeline.push({lineIndex,beats,refStart:cursor,refEnd:cursor+duration,singStart:cursor+duration+.3,singEnd:cursor+duration*2+.3});
-        let i=0;
-        while(i<beats.length){
-          const item=beats[i];
-          if(item.hold){i++;continue;}
-          let length=1;while(i+length<beats.length&&beats[i+length].hold)length++;
-          const note=raga.notes.find(n=>code(n)===item.code);
-          if(note)sound.scheduleReference(settings.base+note.offset,cursor+i*beat,length*beat);
-          i+=length;
-        }
-        cursor+=duration*2+.55;
-      }
+      try{await sound.microphone();if(token!==runId){sound.releaseMic();return;}sound.analyser.fftSize=4096;sound.analyser.smoothingTimeConstant=0;micBuffer=new Float32Array(4096);micActive=true;previousMidi=null;}
+      catch{if(token!==runId)return;}
+      const beat=60/tempo,tolerance=({beginner:35,intermediate:25,advanced:15})[settings.level]||35,results=[];
       running=true;$('sarali-practice').disabled=false;$('sarali-practice').textContent='Stop pattern';
-      $('sarali-status').textContent=micWarning||'Listen to line 1.';
-      let lastMic=0,lastVoiceAt=0,displayedLine=-1,showingVoice=false;
-      const animate=()=>{
-        if(!running||token!==runId)return;
-        const now=ctx.currentTime,last=timeline.at(-1);
-        if(now>=last.singEnd){
-          $('sarali-progress-fill').style.width='100%';
-          stop('Pattern complete. Continue with the next pattern or replay this one.');
-          showLineWindow(last.lineIndex);
-          $('sarali-next').hidden=false;return;
-        }
-        const part=timeline.find(item=>now<item.singEnd+.25);
-        if(part){
-          const listening=now<part.refEnd,singing=now>=part.singStart;
-          if(displayedLine!==part.lineIndex){showLineWindow(part.lineIndex);displayedLine=part.lineIndex;}
-          $('sarali-status').textContent=listening?`Listen to line ${part.lineIndex+1} of ${timeline.length}.`:singing?`Sing line ${part.lineIndex+1} of ${timeline.length}.`:'Get ready to sing.';
-          $('sarali-progress-fill').style.width=`${Math.round(100*Math.max(0,(now-startAt)/(last.singEnd-startAt)))}%`;
-          if(!singing&&showingVoice){clearLiveReadout(host,'sarali');previousMidi=null;showingVoice=false;}
-          if(singing)showingVoice=true;
-          if(singing&&micActive&&now-lastMic>.07){
-            lastMic=now;sound.analyser.getFloatTimeDomainData(micBuffer);
-            const hz=detectLivePitch(micBuffer,ctx.sampleRate);
-            if(hz){previousMidi=showLiveReadout(host,'sarali',hz,settings.base,previousMidi);lastVoiceAt=now;}
-            else if(now-lastVoiceAt>.7){clearLiveReadout(host,'sarali');previousMidi=null;}
+      $('sarali-stage').scrollIntoView({block:'center'});
+      for(let lineIndex=0;lineIndex<lines.length;lineIndex++){
+        const beats=lines[lineIndex],attempts=[];
+        for(let attempt=1;attempt<=(micActive?3:1);attempt++){
+          const refStart=sound.ctx.currentTime+.1;
+          scheduleLine(beats,raga,settings.base,beat,refStart);
+          await runPhase({lineIndex,beats,phase:'listen',attempt,beat,base:settings.base,lineCount:lines.length,token,startAt:refStart});
+          await waitUntil(sound.ctx.currentTime+.25,token);
+          const singStart=sound.ctx.currentTime+.1;
+          const samples=await runPhase({lineIndex,beats,phase:'sing',attempt,beat,base:settings.base,lineCount:lines.length,token,startAt:singStart});
+          if(micActive){
+            const result=scorePatternLine(samples,beats,beat,settings.base,raga.notes,tolerance,code);
+            attempts.push(result);
+            $('sarali-line-feedback').innerHTML=lineFeedbackMarkup(lineIndex,attempt,result,raga.notes);
+            $('sarali-line-feedback').hidden=false;
+            await waitUntil(sound.ctx.currentTime+1.2,token);
+            if(!shouldRetryPatternLine(result.score,attempt))break;
+          }else{
+            $('sarali-line-feedback').innerHTML=`<strong>Line ${lineIndex+1} complete</strong><p>Allow microphone access for a score.</p>`;
+            $('sarali-line-feedback').hidden=false;
+            await waitUntil(sound.ctx.currentTime+1.2,token);
           }
         }
-        frame=requestAnimationFrame(animate);
-      };
-      frame=requestAnimationFrame(animate);
-    }catch(error){if(token!==runId)return;stop(error.message||'Could not start the pattern.');}
+        results.push({attempts});
+      }
+      stop('Pattern complete. Continue with the next pattern or replay this one.');
+      $('sarali-progress-fill').style.width='100%';showLineWindow(lines.length-1);$('sarali-next').hidden=false;
+      $('sarali-results').innerHTML=patternSummaryMarkup(results,raga.notes,tolerance);$('sarali-results').hidden=false;
+      $('sarali-results').scrollIntoView({block:'nearest'});
+    }catch(error){if(token!==runId||error.name==='AbortError')return;stop(error.message||'Could not start the pattern.');}
   }
   render();
   return {render,stop};
