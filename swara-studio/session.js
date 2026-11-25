@@ -1,7 +1,8 @@
-import {RAGAS,practiceSwaras,midiHz,centsBetween} from './music.js?v=20261123-3';
+import {RAGAS,practiceSwaras,midiHz,centsBetween} from './music.js?v=20261125-5';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261123-6';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
+import {countInForLine} from './tempo-guide.js?v=20261125-5';
 
 const STORAGE_KEY='swara-studio-custom-session-v1';
 const SAVED_KEY='swara-studio-saved-exercises-v1';
@@ -92,7 +93,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       <div class="session-save-row"><label for="session-name">Exercise name<input id="session-name" type="text" maxlength="60" placeholder="e.g., Mohanam ascent"></label><button id="session-save" class="secondary-button" type="button">Save exercise</button></div>
       <p id="session-error" class="session-error" role="alert" hidden></p>
       <div class="session-actions"><button id="session-play" class="primary-button" type="button">Listen and Sing <span aria-hidden="true">→</span></button><button id="session-just-sing" class="secondary-button" type="button">Just Sing</button><button id="session-stop" class="secondary-button" type="button" disabled>Stop</button><label class="session-mic-label"><input id="session-mic" type="checkbox" checked> Show my sung note</label></div>
-      <p id="session-status" class="session-status" role="status">Listen and Sing plays each line first. Just Sing checks your recall without playback.</p>
+      <p id="session-status" class="session-status" role="status">Listen and Sing plays each line first. Just Sing uses beat clicks at the set tempo, without swara playback.</p>
       <div id="session-stage" class="session-stage"><div class="session-stage-top"><span class="label">CURRENT SWARA</span><span id="session-count">—</span></div><strong id="session-current">—</strong><div id="session-sequence" class="session-sequence"></div><div id="session-line-feedback" class="pattern-line-feedback" role="status" aria-live="polite" hidden></div><div class="session-progress"><i id="session-progress-fill"></i></div>${liveReadoutMarkup('session')}</div><div id="session-results" class="session-results" hidden></div></div>`;
     $('session-base').value=String(state.base);$('session-raga').value=state.raga;$('session-tempo').value=String(state.tempo);$('session-notes').value=state.notes;$('session-name').value=state.name||'';
     $('session-base').onchange=()=>{state.base=Number($('session-base').value);save();refreshPreview();onSelection?.({base:state.base,raga:state.raga});};
@@ -168,7 +169,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     return lines;
   }
   function refreshPreview(){
-    if(!running){$('session-current').textContent='—';$('session-progress-fill').style.width='0';clearLiveReadout(host,'session');previousMidi=null;$('session-status').textContent='Listen and Sing plays each line first. Just Sing checks your recall without playback.';$('session-line-feedback').hidden=true;$('session-results').hidden=true;}
+    if(!running){$('session-current').textContent='—';$('session-progress-fill').style.width='0';clearLiveReadout(host,'session');previousMidi=null;$('session-status').textContent='Listen and Sing plays each line first. Just Sing uses beat clicks at the set tempo, without swara playback.';$('session-line-feedback').hidden=true;$('session-results').hidden=true;}
     try{
       const lines=readLines(),notes=practiceSwaras(RAGAS[state.raga]);
       $('session-error').hidden=true;
@@ -272,7 +273,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       const scored=micActive,results=[];running=true;
       showLineWindow(0);
       $('session-stage').scrollIntoView({block:'center'});
-      if(justSing){$('session-status').textContent='Get ready to sing line 1.';$('session-current').textContent='Get ready';$('session-count').textContent=`Line 1 of ${lines.length} · Just Sing`;await waitUntil(sound.ctx.currentTime+1.2,token);}
+      if(justSing){$('session-status').textContent=`Count in at ${state.tempo} BPM.`;$('session-current').textContent='Get ready';$('session-count').textContent=`Line 1 of ${lines.length} · Just Sing`;}
       for(let lineIndex=0;lineIndex<lines.length;lineIndex++){
         const line=lines[lineIndex],attempts=[],maxAttempts=justSing?1:(scored?3:1);
         for(let attempt=1;attempt<=maxAttempts;attempt++){
@@ -285,8 +286,16 @@ export function createPracticeSession({sound,getSettings,onSelection}){
             await runPhase({line,lineIndex,lineCount:lines.length,attempt,maxAttempts,phase:'reference',beat,notes,token,startAt:refStart});
             await waitUntil(sound.ctx.currentTime+.25,token);
           }
+          const singStart=justSing
+            ?await countInForLine({sound,beat,lineBeats:line.indices.length,waitUntil,token,onBeat:remaining=>{
+              showLineWindow(lineIndex);
+              $('session-line-feedback').hidden=true;
+              $('session-current').textContent=String(remaining);
+              $('session-count').textContent=`Line ${lineIndex+1} of ${lines.length} · Count in · ${state.tempo} BPM`;
+              $('session-status').textContent=`Sing line ${lineIndex+1} after ${remaining} ${remaining===1?'beat':'beats'}.`;
+            }})
+            :sound.ctx.currentTime+.1;
           $('session-status').textContent=`Sing line ${lineIndex+1} now.`;
-          const singStart=sound.ctx.currentTime+.1;
           const samples=await runPhase({line,lineIndex,lineCount:lines.length,attempt,maxAttempts,phase:'sing',beat,notes,token,startAt:singStart});
           if(scored){
             const result=scorePhraseLine(samples,line.indices,beat,state.base,notes,tolerance);

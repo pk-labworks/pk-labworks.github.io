@@ -87,7 +87,7 @@ export function scorePitch(samples,targets,secondsPerNote,base,tolerance,notes=R
   return {details,accuracy,pass:details.every(d=>d.pass),voiced:details.some(d=>d.detected)};
 }
 export class SoundEngine{
-  constructor(){this.ctx=null;this.nodes=new Set();this.drone=[];this.stream=null;this.recorder=null;this.chunks=[];this.source=null;this.analyser=null;this.recordUrl=null;}
+  constructor(){this.ctx=null;this.nodes=new Set();this.drone=[];this.stream=null;this.recorder=null;this.chunks=[];this.source=null;this.analyser=null;this.recordUrl=null;this.clickBuffer=null;}
   async unlock(){this.ctx??=new (window.AudioContext||window.webkitAudioContext)();if(this.ctx.state!=='running')await this.ctx.resume();}
   scheduleReference(midi,when,duration,volume=.19){return this.scheduleTone(midiHz(midi),when,duration,volume);}
   reference(midi,duration,variant='S',volume=.19){return this.scheduleReference(midi,this.ctx.currentTime,duration,volume);}
@@ -104,6 +104,26 @@ export class SoundEngine{
     const entry={master,nodes};this.nodes.add(entry);
     nodes[0].onended=()=>{master.disconnect();nodes.forEach(n=>n.disconnect());this.nodes.delete(entry);};
     return entry;
+  }
+  scheduleBeatClick(when,accent=false){
+    const ctx=this.ctx;
+    if(!this.clickBuffer){
+      const length=Math.ceil(ctx.sampleRate*.03),buffer=ctx.createBuffer(1,length,ctx.sampleRate),data=buffer.getChannelData(0);
+      for(let i=0;i<length;i++)data[i]=(Math.random()*2-1)*Math.exp(-i/(length*.18));
+      this.clickBuffer=buffer;
+    }
+    const source=ctx.createBufferSource(),master=ctx.createGain(),volume=accent?.16:.1;
+    source.buffer=this.clickBuffer;source.connect(master);master.connect(ctx.destination);
+    master.gain.setValueAtTime(0,when);
+    master.gain.linearRampToValueAtTime(volume,when+.002);
+    master.gain.exponentialRampToValueAtTime(.001,when+.03);
+    source.start(when);source.stop(when+.031);
+    const entry={master,nodes:[source]};this.nodes.add(entry);
+    source.onended=()=>{master.disconnect();source.disconnect();this.nodes.delete(entry);};
+  }
+  scheduleClickTrack(startAt,beatSeconds,lineBeats,countInBeats=4){
+    for(let i=0;i<countInBeats+lineBeats;i++)this.scheduleBeatClick(startAt+i*beatSeconds,i===0||i===countInBeats);
+    return startAt+countInBeats*beatSeconds;
   }
   stopNotes(){for(const {nodes,master}of this.nodes){try{master.gain.cancelScheduledValues(this.ctx.currentTime);master.gain.setTargetAtTime(0,this.ctx.currentTime,.015);for(const n of nodes)if(n.stop)n.stop(this.ctx.currentTime+.06);}catch{}}}
   async toggleDrone(base,on){

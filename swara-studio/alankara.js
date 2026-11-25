@@ -1,8 +1,9 @@
-import {RAGAS} from './music.js?v=20261123-3';
+import {RAGAS} from './music.js?v=20261125-5';
 import {selectionFields} from './selection.js?v=20261122-8';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261123-6';
-import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261125-4';
+import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261125-5';
+import {countInForLine} from './tempo-guide.js?v=20261125-5';
 
 const rows=text=>text.trim().split('\n').map(line=>line.trim());
 export const ALANKARAS=[
@@ -156,7 +157,7 @@ export function createAlankaras({sound,getSettings,onSelection}){
     host.innerHTML=`<div class="session-heading"><p class="eyebrow">LEARNING PATH · 02</p><h1>Alankaras.</h1></div>
       <div class="sarali-panel alankara-panel"><div class="sarali-top">${selectionFields('alankara',settings)}</div>
       <p class="sarali-scale">${raga.notes.map(note=>note.variant).join(' &nbsp; ')}</p>
-      <p class="sarali-instruction">Listen and Sing plays each line first. Just Sing checks your recall without playback.</p>
+      <p class="sarali-instruction">Listen and Sing plays each line first. Just Sing uses beat clicks at the set tempo, without swara playback.</p>
       <label class="sarali-tempo-label">Tempo (BPM) <input id="alankara-tempo" type="number" min="30" max="180" step="1" value="${tempo}"></label>
       <div class="alankara-picker" role="group" aria-label="Alankara patterns">${ALANKARAS.map((item,i)=>`<button type="button" data-alankara="${i}" aria-pressed="${i===selected}"><span>${String(i+1).padStart(2,'0')}</span><strong>${item.short}</strong></button>`).join('')}</div>
       <div class="alankara-meta"><strong>${pattern.name}</strong><span>${pattern.beats} beats · ${pattern.groups.join(' + ')}</span></div>
@@ -241,7 +242,7 @@ export function createAlankaras({sound,getSettings,onSelection}){
       running=true;activeButton.disabled=false;activeButton.textContent='Stop pattern';
       showLineWindow(0);
       $('alankara-stage').scrollIntoView({block:'center'});
-      if(justSing){$('alankara-status').textContent='Get ready to sing line 1.';$('alankara-current').textContent='Get ready';$('alankara-count').textContent=`Line 1 of ${lines.length} · Just Sing`;await waitUntil(sound.ctx.currentTime+1.2,token);}
+      if(justSing){$('alankara-status').textContent=`Count in at ${tempo} BPM.`;$('alankara-current').textContent='Get ready';$('alankara-count').textContent=`Line 1 of ${lines.length} · Just Sing`;}
       for(let lineIndex=0;lineIndex<lines.length;lineIndex++){
         const beats=lines[lineIndex],attempts=[],maxAttempts=justSing?1:(micActive?3:1);
         for(let attempt=1;attempt<=maxAttempts;attempt++){
@@ -251,7 +252,15 @@ export function createAlankaras({sound,getSettings,onSelection}){
             await runPhase({lineIndex,beats,phase:'listen',attempt,maxAttempts,beat,base:settings.base,lineCount:lines.length,token,startAt:refStart});
             await waitUntil(sound.ctx.currentTime+.25,token);
           }
-          const singStart=sound.ctx.currentTime+.1;
+          const singStart=justSing
+            ?await countInForLine({sound,beat,lineBeats:beats.length,waitUntil,token,onBeat:remaining=>{
+              showLineWindow(lineIndex);
+              $('alankara-line-feedback').hidden=true;
+              $('alankara-current').textContent=String(remaining);
+              $('alankara-count').textContent=`Line ${lineIndex+1} of ${lines.length} · Count in · ${tempo} BPM`;
+              $('alankara-status').textContent=`Sing line ${lineIndex+1} after ${remaining} ${remaining===1?'beat':'beats'}.`;
+            }})
+            :sound.ctx.currentTime+.1;
           const samples=await runPhase({lineIndex,beats,phase:'sing',attempt,maxAttempts,beat,base:settings.base,lineCount:lines.length,token,startAt:singStart});
           if(micActive){
             const result=scorePatternLine(samples,beats,beat,settings.base,raga.notes,tolerance,noteCode);

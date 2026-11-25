@@ -1,8 +1,9 @@
-import {RAGAS} from './music.js?v=20261123-1';
+import {RAGAS} from './music.js?v=20261125-5';
 import {selectionFields} from './selection.js?v=20261122-8';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261123-6';
-import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261125-4';
+import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261125-5';
+import {countInForLine} from './tempo-guide.js?v=20261125-5';
 
 // The source lesson uses seven scale degrees. In five-note ragas, omitted
 // swaras move their beats to the end of each line so Aadi taalam stays intact.
@@ -104,7 +105,7 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
     host.innerHTML=`<div class="session-heading"><p class="eyebrow">LEARNING PATH · 01</p><h1>Sarali Varasai.</h1></div>
       <div class="sarali-panel"><div class="sarali-top">${selectionFields('sarali',settings)}</div>
       <p class="sarali-scale">${raga.notes.map(note=>note.variant).join(' &nbsp; ')}</p>
-      <p class="sarali-instruction">Listen and Sing plays each line first. Just Sing checks your recall without playback.</p>
+      <p class="sarali-instruction">Listen and Sing plays each line first. Just Sing uses beat clicks at the set tempo, without swara playback.</p>
       <label class="sarali-tempo-label">Tempo (BPM) <input id="sarali-tempo" type="number" min="30" max="180" step="1" value="${tempo}"></label>
       <div class="sarali-picker" role="group" aria-label="Sarali Varasai patterns">${PATTERNS.map((_,i)=>`<button type="button" data-pattern="${i}" aria-pressed="${i===selected}">${String(i+1).padStart(2,'0')}</button>`).join('')}</div>
       <div class="sarali-actions"><button id="sarali-practice" class="primary-button" type="button">Listen and Sing</button><button id="sarali-just-sing" class="secondary-button" type="button">Just Sing</button><button id="sarali-next" class="secondary-button" type="button" hidden>Next pattern →</button></div>
@@ -191,7 +192,7 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
       running=true;activeButton.disabled=false;activeButton.textContent='Stop pattern';
       showLineWindow(0);
       $('sarali-stage').scrollIntoView({block:'center'});
-      if(justSing){$('sarali-status').textContent='Get ready to sing line 1.';$('sarali-current').textContent='Get ready';$('sarali-count').textContent=`Line 1 of ${lines.length} · Just Sing`;await waitUntil(sound.ctx.currentTime+1.2,token);}
+      if(justSing){$('sarali-status').textContent=`Count in at ${tempo} BPM.`;$('sarali-current').textContent='Get ready';$('sarali-count').textContent=`Line 1 of ${lines.length} · Just Sing`;}
       for(let lineIndex=0;lineIndex<lines.length;lineIndex++){
         const beats=lines[lineIndex],attempts=[],maxAttempts=justSing?1:(micActive?3:1);
         for(let attempt=1;attempt<=maxAttempts;attempt++){
@@ -201,7 +202,15 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
             await runPhase({lineIndex,beats,phase:'listen',attempt,maxAttempts,beat,base:settings.base,lineCount:lines.length,token,startAt:refStart});
             await waitUntil(sound.ctx.currentTime+.25,token);
           }
-          const singStart=sound.ctx.currentTime+.1;
+          const singStart=justSing
+            ?await countInForLine({sound,beat,lineBeats:beats.length,waitUntil,token,onBeat:remaining=>{
+              showLineWindow(lineIndex);
+              $('sarali-line-feedback').hidden=true;
+              $('sarali-current').textContent=String(remaining);
+              $('sarali-count').textContent=`Line ${lineIndex+1} of ${lines.length} · Count in · ${tempo} BPM`;
+              $('sarali-status').textContent=`Sing line ${lineIndex+1} after ${remaining} ${remaining===1?'beat':'beats'}.`;
+            }})
+            :sound.ctx.currentTime+.1;
           const samples=await runPhase({lineIndex,beats,phase:'sing',attempt,maxAttempts,beat,base:settings.base,lineCount:lines.length,token,startAt:singStart});
           if(micActive){
             const result=scorePatternLine(samples,beats,beat,settings.base,raga.notes,tolerance,code);
