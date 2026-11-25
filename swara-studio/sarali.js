@@ -92,7 +92,7 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
     host.querySelectorAll('[data-sarali-beat]').forEach(note=>note.classList.remove('current-beat'));
     clearLiveReadout(host,'sarali');previousMidi=null;
     const play=$('sarali-practice');
-    if(play){play.textContent='Play and sing pattern';play.disabled=false;}
+    if(play){play.textContent='Listen and Sing';play.disabled=false;}
     host.querySelectorAll('[data-pattern],#sarali-base,#sarali-raga,#sarali-tempo').forEach(el=>el.disabled=false);
     if(message&&$('sarali-status'))$('sarali-status').textContent=message;
   }
@@ -105,7 +105,7 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
       <p class="sarali-instruction">Aadi taalam. Listen to one line, then sing it for the same number of beats.</p>
       <label class="sarali-tempo-label">Tempo (BPM) <input id="sarali-tempo" type="number" min="30" max="180" step="1" value="${tempo}"></label>
       <div class="sarali-picker" role="group" aria-label="Sarali Varasai patterns">${PATTERNS.map((_,i)=>`<button type="button" data-pattern="${i}" aria-pressed="${i===selected}">${String(i+1).padStart(2,'0')}</button>`).join('')}</div>
-      <div class="sarali-actions"><button id="sarali-practice" class="primary-button" type="button">Play and sing pattern</button><button id="sarali-next" class="secondary-button" type="button" hidden>Next pattern →</button></div>
+      <div class="sarali-actions"><button id="sarali-practice" class="primary-button" type="button">Listen and Sing</button><button id="sarali-next" class="secondary-button" type="button" hidden>Next pattern →</button></div>
       <p id="sarali-status" class="session-status" role="status">Ready for pattern ${selected+1}.</p>
       <div id="sarali-stage" class="session-stage pattern-stage"><div class="session-stage-top"><span class="label">CURRENT SWARA</span><span id="sarali-count">${pattern.lines.length} lines</span></div><strong id="sarali-current">—</strong>
       <div class="sarali-score"><h2>Pattern ${String(selected+1).padStart(2,'0')}</h2>${pattern.lines.map((bars,line)=>`<div class="sarali-score-line" data-score-line="${line}"><span class="sarali-line-number">${line+1}</span>${bars.map((bar,barIndex)=>`<span class="sarali-bar">${bar.map((beat,beatIndex)=>`<span class="${beat.hold?'hold':''}" data-sarali-beat="${bars.slice(0,barIndex).reduce((sum,part)=>sum+part.length,0)+beatIndex}" aria-label="${beat.hold?'Hold previous swara':beat.label}">${beat.label}</span>`).join('')}</span>`).join('')}</div>`).join('')}</div>

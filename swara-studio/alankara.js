@@ -144,7 +144,7 @@ export function createAlankaras({sound,getSettings,onSelection}){
     host.querySelectorAll('[data-alankara-line]').forEach(row=>{row.hidden=false;row.classList.remove('current');});
     host.querySelectorAll('[data-alankara-beat]').forEach(note=>note.classList.remove('current-beat'));
     const play=$('alankara-practice');
-    if(play){play.textContent='Play and sing pattern';play.disabled=false;}
+    if(play){play.textContent='Listen and Sing';play.disabled=false;}
     host.querySelectorAll('[data-alankara],#alankara-base,#alankara-raga,#alankara-tempo').forEach(el=>el.disabled=false);
     if(message&&$('alankara-status'))$('alankara-status').textContent=message;
   }
@@ -158,7 +158,7 @@ export function createAlankaras({sound,getSettings,onSelection}){
       <label class="sarali-tempo-label">Tempo (BPM) <input id="alankara-tempo" type="number" min="30" max="180" step="1" value="${tempo}"></label>
       <div class="alankara-picker" role="group" aria-label="Alankara patterns">${ALANKARAS.map((item,i)=>`<button type="button" data-alankara="${i}" aria-pressed="${i===selected}"><span>${String(i+1).padStart(2,'0')}</span><strong>${item.short}</strong></button>`).join('')}</div>
       <div class="alankara-meta"><strong>${pattern.name}</strong><span>${pattern.beats} beats · ${pattern.groups.join(' + ')}</span></div>
-      <div class="sarali-actions"><button id="alankara-practice" class="primary-button" type="button">Play and sing pattern</button><button id="alankara-next" class="secondary-button" type="button" hidden>Next alankara →</button></div>
+      <div class="sarali-actions"><button id="alankara-practice" class="primary-button" type="button">Listen and Sing</button><button id="alankara-next" class="secondary-button" type="button" hidden>Next alankara →</button></div>
       <p id="alankara-status" class="session-status" role="status">Ready for pattern ${selected+1}.</p>
       <div id="alankara-stage" class="session-stage pattern-stage"><div class="session-stage-top"><span class="label">CURRENT SWARA</span><span id="alankara-count">${pattern.lines.length} lines</span></div><strong id="alankara-current">—</strong>
       <div class="sarali-score alankara-score"><h2>Pattern ${String(selected+1).padStart(2,'0')}</h2>${pattern.lines.map((bars,lineIndex)=>`<div class="sarali-score-line" data-alankara-line="${lineIndex}"><span class="sarali-line-number">${lineIndex+1}</span>${bars.map((bar,barIndex)=>`<span class="sarali-bar">${bar.map((beat,beatIndex)=>`<span class="${beat.hold?'hold':''}" data-alankara-beat="${bars.slice(0,barIndex).reduce((sum,part)=>sum+part.length,0)+beatIndex}" aria-label="${beat.hold?'Hold previous swara':beat.label}">${beat.label}</span>`).join('')}</span>`).join('')}</div>`).join('')}</div>

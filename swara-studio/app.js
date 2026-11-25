@@ -1,9 +1,9 @@
 import {RAGA_LIST,RAGAS,DEFAULT_RAGA,practiceSwaras,swaraHz as swaraHzFor,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261123-3';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 import {createTools} from './tools.js?v=20261122-8';
-import {createPracticeSession} from './session.js?v=20261125-1';
-import {createSaraliVarasai} from './sarali.js?v=20261125-1';
-import {createAlankaras} from './alankara.js?v=20261125-1';
+import {createPracticeSession} from './session.js?v=20261125-2';
+import {createSaraliVarasai} from './sarali.js?v=20261125-2';
+import {createAlankaras} from './alankara.js?v=20261125-2';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
 const $=id=>document.getElementById(id);
 const sound=new SoundEngine();
@@ -42,7 +42,7 @@ function setPhase(next,label,time=''){
   $('note-stage').classList.toggle('recording',next==='recording');
   $('begin').innerHTML=busy()
     ?'<span>Stop practice</span><span aria-hidden="true">■</span>'
-    :`<span>${next==='result'?'Try again':isIdentification()?'Listen':isMemory()?`Hear Sa and sing ${targets.length===1?'note':'notes'}`:'Start exercise'}</span><span aria-hidden="true">${next==='result'?'↻':'→'}</span>`;
+    :`<span>${isIdentification()?(next==='result'?'Try again':'Listen'):'Listen and Sing'}</span><span aria-hidden="true">${next==='result'?'↻':'→'}</span>`;
   const playLabel=next==='reference'?'Stop':'Play';
   $('preview-note').querySelector('span').textContent=playLabel;
   $('preview-note').setAttribute('aria-label',next==='reference'?'Stop playing the swaras':`Play the ${targets.length===1?'swara':'swaras'}`);
