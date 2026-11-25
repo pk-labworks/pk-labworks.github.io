@@ -1,4 +1,4 @@
-import {RAGA_LIST,RAGAS,DEFAULT_RAGA,practiceSwaras,swaraHz as swaraHzFor,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261125-5';
+import {RAGA_LIST,RAGAS,DEFAULT_RAGA,practiceSwaras,swaraHz as swaraHzFor,centsBetween,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261125-5';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 import {createTools} from './tools.js?v=20261122-8';
 import {createPracticeSession} from './session.js?v=20261125-5';
@@ -15,7 +15,7 @@ try{const stored=JSON.parse(localStorage.getItem('swara-studio-v1')||'{}');const
 let RAGA_NOTES=RAGAS[settings.raga].notes,SWARAS=practiceSwaras(RAGAS[settings.raga]);
 const swaraHz=(base,index)=>swaraHzFor(base,index,SWARAS);
 const scorePitch=(samples,targets,secondsPerNote,base,tolerance)=>scorePitchFor(samples,targets,secondsPerNote,base,tolerance,SWARAS);
-let step=1,mode='sing',reference=[0],targets=[0],responseTargets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,lastLiveVoiceAt=0,totalSeconds=3,recallVoicedSeconds=0,previewing=false,previewReturnPhase='idle',comparisonController=null,comparisonButton=null,tools=null,session=null,sarali=null,alankara=null,previousLiveMidi=null,micBuffer=null;
+let step=1,mode='sing',reference=[0],targets=[0],responseTargets=[0],answers=[],lastSequence='',phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,lastLiveVoiceAt=0,totalSeconds=3,pitchFillVoicedSeconds=0,pitchFillNote=-1,previewing=false,previewReturnPhase='idle',comparisonController=null,comparisonButton=null,tools=null,session=null,sarali=null,alankara=null,previousLiveMidi=null,micBuffer=null;
 const titles={1:['THE FOUNDATIONS','One swara at a time.','Listen closely. Sing freely. Let your ear lead the way.'],2:['A STEP FORWARD','One note leads to another.','Hold two sounds in your mind, then find each swara.'],3:['MUSICAL MEMORY','Let three notes become one.','Listen for the shape of a phrase, then respond in order.']};
 const isIdentification=()=>mode==='name';
 const isMemory=()=>mode==='memory';
@@ -106,18 +106,35 @@ function renderExercise(newSequence=true){
   $('sequence').hidden=responseTargets.length===1&&!concealed;
   $('sequence').innerHTML=responseTargets.map(i=>`<span>${concealed?'?':SWARAS[i].name}</span>`).join('');
   $('duration-caption').textContent=concealed?`Base Sa + ${count} ${count===1?'swara':'swaras'} · ${referenceDuration()}s each`:isMemory()?`Sa plays ${referenceDuration()}s · ${settings.response}s${count>1?' / note':''} singing`:`Sa + ${count} ${count===1?'swara':'swaras'} · ${referenceDuration()}s each to hear · ${settings.response}s each to sing`;
-  $('exercise-panel').classList.remove('show-result','memory-result');$('answer-options').hidden=true;$('feedback').hidden=true;answers=[];setPhase('idle',idlePrompt());resetReadings();resetRecallFill();
+  $('exercise-panel').classList.remove('show-result','memory-result');$('answer-options').hidden=true;$('feedback').hidden=true;answers=[];setPhase('idle',idlePrompt());resetReadings();resetPitchFill();
 }
-function resetRecallFill(){
-  recallVoicedSeconds=0;
-  $('recall-fill-level').style.transform='translateY(100%)';
+function resetPitchFill(){
+  pitchFillVoicedSeconds=0;pitchFillNote=-1;
+  $('pitch-fill-segments').replaceChildren();
+  $('recall-fill').dataset.pitch='idle';
   $('recall-fill').setAttribute('aria-valuenow','0');
+  $('recall-fill').setAttribute('aria-valuetext','No singing detected');
+  $('pitch-feedback-state').textContent='';
 }
-function advanceRecallFill(sampleMs){
-  recallVoicedSeconds=Math.min(totalSeconds,recallVoicedSeconds+Math.max(0,Math.min(sampleMs,100))/1000);
-  const percent=Math.round(100*recallVoicedSeconds/totalSeconds);
-  $('recall-fill-level').style.transform=`translateY(${100-percent}%)`;
+function advancePitchFill(sampleMs,frequency,index){
+  const cents=centsBetween(frequency,swaraHz(settings.base,index));
+  const pitch=Math.abs(cents)<=tolerance()?'correct':cents>0?'sharp':'flat';
+  const previous=100*pitchFillVoicedSeconds/settings.response;
+  pitchFillVoicedSeconds=Math.min(settings.response,pitchFillVoicedSeconds+Math.max(0,Math.min(sampleMs,100))/1000);
+  const filled=100*pitchFillVoicedSeconds/settings.response;
+  if(filled>previous){
+    const band=document.createElement('i');
+    band.dataset.pitch=pitch;
+    band.style.bottom=`${previous}%`;
+    band.style.height=`${filled-previous}%`;
+    $('pitch-fill-segments').appendChild(band);
+  }
+  const percent=Math.round(filled);
+  $('recall-fill').dataset.pitch=pitch;
   $('recall-fill').setAttribute('aria-valuenow',String(percent));
+  const label=pitch==='correct'?'In tune':pitch==='sharp'?'Sharp':'Flat';
+  $('recall-fill').setAttribute('aria-valuetext',`${percent}% filled · ${label}`);
+  $('pitch-feedback-state').textContent=label;
 }
 function resetReadings(){
   $('detected-note').textContent='—';
@@ -125,7 +142,6 @@ function resetReadings(){
   $('detected-western').textContent='—';
   $('detected-hz').textContent='— Hz';
   $('detected-cents').textContent='Sing to see your tuning';
-  $('practice-tuning-dot').style.left='50%';
 }
 function wait(ms,signal){return new Promise((resolve,reject)=>{if(signal.aborted)return reject(new DOMException('Cancelled','AbortError'));const cancel=()=>{clearTimeout(timer);reject(new DOMException('Cancelled','AbortError'));};const timer=setTimeout(()=>{signal.removeEventListener('abort',cancel);resolve();},ms);signal.addEventListener('abort',cancel,{once:true});});}
 function throwIfAborted(signal){if(signal.aborted)throw new DOMException('Cancelled','AbortError');}
@@ -202,7 +218,7 @@ async function begin(){
   stopComparison();
   if(previewing){sound.stopNotes();controller?.abort();previewing=false;setPhase('idle',idlePrompt());}
   else if(busy()){cancelExercise();return;}
-  controller=new AbortController();const signal=controller.signal;samples=[];live=null;previousLiveMidi=null;lastSample=0;lastLiveVoiceAt=0;previewing=false;answers=[];updateAnswerEntry();$('exercise-panel').classList.remove('show-result','memory-result');$('feedback').hidden=true;$('answer-options').hidden=true;resetReadings();resetRecallFill();
+  controller=new AbortController();const signal=controller.signal;samples=[];live=null;previousLiveMidi=null;lastSample=0;lastLiveVoiceAt=0;previewing=false;answers=[];updateAnswerEntry();$('exercise-panel').classList.remove('show-result','memory-result');$('feedback').hidden=true;$('answer-options').hidden=true;resetReadings();resetPitchFill();
   try{
     setPhase('preparing',isIdentification()?'Preparing the reference.':'Waiting for microphone access…');await sound.unlock();throwIfAborted(signal);
     if(drone){sound.stopDrone();drone=false;updateDroneButton();}
@@ -228,11 +244,12 @@ async function begin(){
 function captureFrame(){
   if(phase!=='recording'||!sound.analyser)return;
   const now=performance.now(),t=(now-recordStart)/1000;const current=Math.min(responseTargets.length-1,Math.floor(t/settings.response));
+  if(current!==pitchFillNote){resetPitchFill();pitchFillNote=current;if(!isMemory()){live=null;updateLive();}}
   if(now-lastSample>=50){
     const sampleMs=lastSample?now-lastSample:Math.min(now-recordStart,50);
     lastSample=now;sound.analyser.getFloatTimeDomainData(micBuffer);
     const frequency=detectLivePitch(micBuffer,sound.ctx.sampleRate);
-    if(frequency){live={hz:frequency};lastLiveVoiceAt=now;if(isMemory())advanceRecallFill(sampleMs);else updateLive();}
+    if(frequency){live={hz:frequency};lastLiveVoiceAt=now;advancePitchFill(sampleMs,frequency,responseTargets[current]);if(!isMemory())updateLive();}
     else if(now-lastLiveVoiceAt>700){live=null;if(!isMemory())updateLive();}
     samples.push({t,hz:frequency||null,index:responseTargets[current]});
   }
@@ -248,15 +265,15 @@ function updateLive(){
   $('detected-full').textContent=reading.fullName;
   $('detected-western').textContent=reading.western;
   $('detected-hz').textContent=`${live.hz.toFixed(1)} Hz`;
-  $('detected-cents').textContent=reading.tuning;
-  $('practice-tuning-dot').style.left=`${reading.tuningPosition}%`;
+  const targetIndex=responseTargets[Math.max(0,pitchFillNote)],cents=centsBetween(live.hz,swaraHz(settings.base,targetIndex));
+  $('detected-cents').textContent=Math.abs(cents)<=tolerance()?`In tune with ${swaraLabel(targetIndex)}`:`${Math.abs(Math.round(cents))} cents ${cents>0?'sharp':'flat'} of ${swaraLabel(targetIndex)}`;
 }
 function cancelExercise(){
   controller?.abort();stopComparison();cancelAnimationFrame(animation);sound.stopNotes();sound.finishRecording();sound.releaseMic();previewing=false;
   $('note-kicker').textContent=isIdentification()?'HEAR SA FIRST':isMemory()?'FROM MEMORY':'YOUR REFERENCE';
   $('target-name').textContent=isIdentification()?'?':SWARAS[targets[0]].name;
   $('target-western').textContent=isIdentification()?senseOrder():isMemory()?'':noteReadout(targets[0]);
-  setPhase('idle',idlePrompt());$('answer-options').hidden=true;resetReadings();resetRecallFill();
+  setPhase('idle',idlePrompt());$('answer-options').hidden=true;resetReadings();resetPitchFill();
 }
 function answer(index){
   if(phase!=='answer'||answers.length>=targets.length)return;
