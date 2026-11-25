@@ -23,7 +23,7 @@ export function lineFeedbackMarkup(lineIndex,attempt,result,notes,{singlePass=fa
     :shouldRetryPatternLine(result.score,attempt)
     ?`Listen and sing this line again · try ${attempt+1} of 3.`
     :result.score<60?`${advance} Revisit this one after the pattern.`:advance;
-  return `<strong>Line ${lineIndex+1}: ${result.score}%</strong><span>${singlePass?'Just Sing':`Try ${attempt} of 3`}</span><p>${weak.length?`Practice ${weak.join(', ')}. `:''}${next}</p>`;
+  return `<strong>Line ${lineIndex+1}: ${result.score}%</strong><span>${singlePass?'Sing':`Try ${attempt} of 3`}</span><p>${weak.length?`Practice ${weak.join(', ')}. `:''}${next}</p>`;
 }
 
 export function patternSummaryMarkup(results,notes,tolerance,{singlePass=false}={}){

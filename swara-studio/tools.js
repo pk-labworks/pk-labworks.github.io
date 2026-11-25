@@ -1,6 +1,7 @@
 import {RAGAS,PITCH_POSITION_LABELS,midiHz,noteName} from './music.js?v=20261122-8';
 import {LIVE_SWARAS,LIVE_WINDOW_MS,LIVE_GRAPH_FRAME_MS,detectLivePitch,livePitchReading,drawLiveTrace} from './swara-live-core.js?v=20261121-1';
 import {selectionFields} from './selection.js?v=20261122-8';
+import {pitchCircleMarkup,resetPitchCircle,updatePitchCircle} from './pitch-circle.js?v=20261125-1';
 
 export function createTools({sound,getSettings,getNotes,onSelection}){
   const host=document.getElementById('tools-view');
@@ -42,7 +43,7 @@ export function createTools({sound,getSettings,getNotes,onSelection}){
   function liveView(){
     const scale=LIVE_SWARAS.map(([name,description],index)=>`<div class="swara-live-scale-item${ragaNote(index)?' in-raga':''}" data-scale-index="${index}"><strong>${name}</strong><small>${description.split(' / ')[1]}</small></div>`).join('');
     const state=micPending?'Connecting to microphone…':micError||'';
-    return `<div class="tool-surface swara-live-tool"><div class="tool-surface-heading">${toolHeading()}</div><p class="tool-live-instruction">Press Start, then just start singing and see where your notes land.</p><div class="live-toolbar"><button class="primary-button" id="tool-mic" aria-pressed="${micPending||listening}" aria-label="${micPending?'Cancel microphone request':listening?'Stop pitch detection':'Start pitch detection'}">${micPending?'Cancel':listening?'Stop':'Start'}</button><span id="tool-mic-status" role="status">${state}</span></div><section class="swara-live-readout" aria-label="Current sung pitch"><div class="swara-live-note-row"><div><strong id="tool-live-note" aria-live="polite">—</strong><span id="tool-live-name">Your note will appear here</span></div><div class="swara-live-western"><strong id="tool-live-western">—</strong><span id="tool-live-hz">— Hz</span></div></div><div class="swara-live-tuning"><span>FLAT</span><div class="swara-live-tuning-track"><i></i><i id="tool-tuning-dot"></i></div><span>SHARP</span></div><p id="tool-live-cents">Sing to see your tuning</p></section><section class="swara-live-trace"><div class="swara-live-section-heading"><h3>Last 2 seconds</h3><button class="secondary-button" id="tool-clear-trace" type="button">Clear graph</button></div><canvas id="tool-live-trace" role="img" aria-label="Live pitch trace over the last two seconds, from Sa to Upper Sa, scrolling under a fixed now marker"></canvas><p>Notes outside this octave appear in the readout above.</p></section><section class="swara-live-scale-section"><h3>Swaras around your Sa</h3><div class="swara-live-scale-grid">${scale}</div></section><p class="tool-caption">Microphone audio stays on this device.</p></div>`;
+    return `<div class="tool-surface swara-live-tool"><div class="tool-surface-heading">${toolHeading()}</div><p class="tool-live-instruction">Press Start, then just start singing and see where your notes land.</p><div class="live-toolbar"><button class="primary-button" id="tool-mic" aria-pressed="${micPending||listening}" aria-label="${micPending?'Cancel microphone request':listening?'Stop pitch detection':'Start pitch detection'}">${micPending?'Cancel':listening?'Stop':'Start'}</button><span id="tool-mic-status" role="status">${state}</span></div><section class="swara-live-readout" aria-label="Current sung pitch"><div class="swara-live-note-row"><div><strong id="tool-live-note" aria-live="polite">—</strong><span id="tool-live-name">Your note will appear here</span></div><div class="swara-live-western"><strong id="tool-live-western">—</strong><span id="tool-live-hz">— Hz</span></div></div>${pitchCircleMarkup('tool')}<p id="tool-live-cents">Sing to see your tuning</p></section><section class="swara-live-trace"><div class="swara-live-section-heading"><h3>Last 2 seconds</h3><button class="secondary-button" id="tool-clear-trace" type="button">Clear graph</button></div><canvas id="tool-live-trace" role="img" aria-label="Live pitch trace over the last two seconds, from Sa to Upper Sa, scrolling under a fixed now marker"></canvas><p>Notes outside this octave appear in the readout above.</p></section><section class="swara-live-scale-section"><h3>Swaras around your Sa</h3><div class="swara-live-scale-grid">${scale}</div></section><p class="tool-caption">Microphone audio stays on this device.</p></div>`;
   }
   function clearLive(){
     const note=host.querySelector('#tool-live-note');if(!note)return;
@@ -51,7 +52,7 @@ export function createTools({sound,getSettings,getNotes,onSelection}){
     host.querySelector('#tool-live-western').textContent='—';
     host.querySelector('#tool-live-hz').textContent='— Hz';
     host.querySelector('#tool-live-cents').textContent='Sing to see your tuning';
-    host.querySelector('#tool-tuning-dot').style.left='50%';
+    resetPitchCircle(host,'tool');
     host.querySelectorAll('.swara-live-scale-item.active').forEach(item=>item.classList.remove('active'));
   }
   function showPitch(frequency,now){
@@ -62,7 +63,7 @@ export function createTools({sound,getSettings,getNotes,onSelection}){
     host.querySelector('#tool-live-western').textContent=reading.western;
     host.querySelector('#tool-live-hz').textContent=`${frequency.toFixed(1)} Hz`;
     host.querySelector('#tool-live-cents').textContent=reading.tuning;
-    host.querySelector('#tool-tuning-dot').style.left=`${reading.tuningPosition}%`;
+    updatePitchCircle(host,'tool',{noteKey:reading.midi,frequency,targetHz:midiHz(reading.midi),sampleMs:60,durationMs:3000,tolerance:({beginner:35,intermediate:25,advanced:15})[getSettings().level]||35});
     host.querySelectorAll('.swara-live-scale-item').forEach((item,i)=>item.classList.toggle('active',i===reading.index));
     liveHistory.push({midi:reading.exactMidi,time:now});
   }

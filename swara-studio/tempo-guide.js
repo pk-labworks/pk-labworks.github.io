@@ -1,5 +1,5 @@
-export async function countInForLine({sound,beat,lineBeats,waitUntil,token,onBeat}){
-  const countInBeats=4,startAt=sound.ctx.currentTime+.1;
+export async function countInForLine({sound,beat,lineBeats,waitUntil,token,onBeat,countInBeats=4}){
+  const startAt=sound.ctx.currentTime+.1;
   const singStart=sound.scheduleClickTrack(startAt,beat,lineBeats,countInBeats);
   for(let i=0;i<countInBeats;i++){
     await waitUntil(startAt+i*beat,token);
