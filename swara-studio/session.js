@@ -7,6 +7,7 @@ const STORAGE_KEY='swara-studio-custom-session-v1';
 const SAVED_KEY='swara-studio-saved-exercises-v1';
 const MAX_BEATS=128;
 const MAX_SAVED=25;
+const PASSING_LINE_SCORE=60;
 const digit=letter=>({'₁':'1','₂':'2','₃':'3'})[letter]||letter;
 const sequenceTokens=text=>text.replace(/upper\s+sa/gi,'UpperSa').replace(/[₁₂₃]/g,digit).split(/[\s,;|]+/).filter(Boolean);
 
@@ -43,7 +44,9 @@ export function scorePhraseLine(samples,indices,beat,base,notes,tolerance){
     const coverage=Math.min(1,voiced.length/Math.max(2,(beat-onset)*8));
     return {index,score:voiced.length?Math.round(100*accurate/voiced.length*coverage):0,detected:voiced.length>0};
   });
-  return {score:Math.round(details.reduce((sum,note)=>sum+note.score,0)/details.length),details};
+  const average=Math.round(details.reduce((sum,note)=>sum+note.score,0)/details.length);
+  const score=details.some(note=>note.score<PASSING_LINE_SCORE)?Math.min(average,PASSING_LINE_SCORE-1):average;
+  return {score,details};
 }
 
 export function saveExerciseRecord(exercises,record){
@@ -54,7 +57,7 @@ export function saveExerciseRecord(exercises,record){
   return next;
 }
 
-export const shouldRepeatLine=(score,attempt)=>score<60&&attempt<3;
+export const shouldRepeatLine=(score,attempt)=>score<PASSING_LINE_SCORE&&attempt<3;
 
 export function createPracticeSession({sound,getSettings,onSelection}){
   const host=document.getElementById('session-view');
@@ -241,11 +244,10 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     const best=results.map(result=>result.attempts.reduce((winner,attempt)=>!winner||attempt.score>winner.score?attempt:winner,null));
     const score=Math.round(best.reduce((sum,line)=>sum+line.score,0)/best.length);
     const weakLines=best.map((line,index)=>({line,index})).filter(({line})=>line.score<60).map(({index})=>index+1);
-    const weakNotes=best.some(line=>line.details.some(note=>note.score<60));
     hostResults.innerHTML=`<h2>Session score: ${score}%</h2><p>Best attempt on each line · pitch within ±${tolerance} cents of the reference.</p><div class="session-result-lines">${best.map((line,index)=>{
       const weak=[...new Set(line.details.filter(note=>note.score<60).map(note=>swaraLabel(notes[note.index])))];
       return `<div><strong>Line ${index+1}: ${line.score}%</strong><span>${results[index].attempts.length} ${results[index].attempts.length===1?'attempt':'attempts'}${weak.length?` · Practice ${weak.join(', ')}`:' · Well done'}</span></div>`;
-    }).join('')}</div><p class="session-guidance">${weakLines.length?`Practice ${weakLines.length===1?'line':'lines'} ${weakLines.join(', ')} again, focusing on the notes listed above.`:weakNotes?'All lines reached 60%. Keep working on the notes listed above to make them steadier.':'All lines reached 60%. Keep practicing at a comfortable tempo.'}</p>`;
+    }).join('')}</div><p class="session-guidance">${weakLines.length?`Practice ${weakLines.length===1?'line':'lines'} ${weakLines.join(', ')} again, focusing on the notes listed above.`:'All lines reached 60%. Keep practicing at a comfortable tempo.'}</p>`;
     hostResults.scrollIntoView({block:'nearest'});
   }
   async function start(){

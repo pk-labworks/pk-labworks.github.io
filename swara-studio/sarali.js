@@ -2,7 +2,7 @@ import {RAGAS} from './music.js?v=20261123-1';
 import {selectionFields} from './selection.js?v=20261122-8';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261123-6';
-import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261125-1';
+import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261125-3';
 
 // The source lesson uses seven scale degrees. In five-note ragas, omitted
 // swaras move their beats to the end of each line so Aadi taalam stays intact.
