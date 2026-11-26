@@ -7,8 +7,8 @@
   <meta name="description" content="Practice Carnatic swaras, develop your ear, and see your singing in real time. A personal music practice studio.">
   <title>Swara Studio — Listen. Sing. Find your pitch.</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20261125-7">
-  <script type="module" src="app.js?v=20261125-7"></script>
+  <link rel="stylesheet" href="styles.css?v=20261126-1">
+  <script type="module" src="app.js?v=20261126-1"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to practice</a>
@@ -33,13 +33,13 @@
     <div class="sidebar-bottom"><div class="small-sound" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><p>A little practice.<br>A deeper connection.</p><button id="help-open" class="text-button">A note before you begin <span>↗</span></button></div>
   </aside>
   <div class="workspace">
-    <header class="topbar"><span class="topbar-label">A SPACE TO LISTEN</span><div class="topbar-right"><span class="local-status"><i></i> Saved on this device</span><button id="settings-open" class="icon-button" aria-label="Practice settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 7h16M4 17h16M8 4v6M16 14v6"/></svg></button></div></header>
+    <header class="topbar"><span class="topbar-label">A SPACE TO LISTEN</span><div class="topbar-right"><button id="drone-toggle" class="drone-button" aria-label="Shruthi drone: off" aria-pressed="false"><span class="drone-symbol" aria-hidden="true">≋</span><span>Shruthi drone<small id="drone-status">Off</small></span><span class="switch" aria-hidden="true"></span></button><span class="local-status"><i></i> Saved on this device</span><button id="settings-open" class="icon-button" aria-label="Practice settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 7h16M4 17h16M8 4v6M16 14v6"/></svg></button></div></header>
     <main id="main" tabindex="-1">
       <section id="sarali-view" class="view" hidden></section>
       <section id="alankara-view" class="view" hidden></section>
       <section id="practice-view" class="view">
         <div class="page-heading"><div><p class="eyebrow" id="step-eyebrow">STEP 03 / THE FOUNDATIONS</p><h1 id="page-title">One swara at a time.</h1><p class="page-description" id="page-description">Listen closely. Sing freely. Let your ear lead the way.</p></div><div class="daily-goal"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="20"/><circle id="goal-ring" cx="24" cy="24" r="20"/></svg><span><strong id="today-count">0 <span>/ 8</span></strong><small>today’s practice</small></span></div></div>
-        <div class="session-bar"><div id="practice-selection" class="practice-selection"></div><button id="drone-toggle" class="drone-button" aria-pressed="false"><span class="drone-symbol" aria-hidden="true">≋</span><span>Shruthi drone<small id="drone-status">Off</small></span><span class="switch" aria-hidden="true"></span></button></div>
+        <div class="session-bar"><div id="practice-selection" class="practice-selection"></div></div>
         <div id="exercise-tabs" class="exercise-tabs" role="tablist" aria-label="Practice type"><button role="tab" aria-selected="true" data-mode="sing">Learn</button><button role="tab" aria-selected="false" data-mode="name">Sense</button><button role="tab" aria-selected="false" data-mode="memory">Recall</button></div>
         <div id="octave-options" class="octave-options" role="group" aria-label="Additional notes"><span>Include notes</span><label><input id="include-lower" type="checkbox"> Lower Pa–Sa</label><label><input id="include-upper" type="checkbox"> Upper Ri–Pa</label></div>
         <div class="practice-layout">

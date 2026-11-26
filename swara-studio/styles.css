@@ -413,12 +413,17 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 .octave-options>span{font-weight:650}
 .octave-options label{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
 .octave-options input{accent-color:var(--green);margin:0}
-.session-bar .drone-button{min-height:59px;border-left:1px solid var(--line)}
+.topbar .drone-button{min-height:38px;padding:5px 9px;border:1px solid var(--line);border-radius:20px;background:#f8f8f1;gap:7px;font-size:10px;line-height:1.1;white-space:nowrap}
+.topbar .drone-button[aria-pressed=true]{border-color:#a8c4a3;background:#e6f0e1;color:#244c35}
+.topbar .drone-button small{margin-top:2px;font-size:9px}
+.topbar .drone-symbol{font-size:18px}
+.topbar .drone-button .switch{margin-left:2px}
 .tool-current-settings,.sarali-top{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;width:min(100%,590px)}
 .tool-surface-heading{width:100%}
 @media(max-width:720px){
   .practice-selection{width:100%;min-width:0;padding:10px 12px}
-  .session-bar .drone-button{min-height:0;border-left:0}
+  .topbar .drone-button{min-height:30px;padding:3px 7px;font-size:9px}
+  .topbar .drone-symbol{display:none}
   .tool-current-settings,.sarali-top{width:100%;gap:10px}
 }
 

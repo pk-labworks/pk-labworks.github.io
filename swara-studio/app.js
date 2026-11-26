@@ -1,4 +1,4 @@
-import {RAGA_LIST,RAGAS,DEFAULT_RAGA,practiceSwaras,swaraHz as swaraHzFor,centsBetween,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261125-5';
+import {RAGA_LIST,RAGAS,DEFAULT_RAGA,practiceSwaras,swaraHz as swaraHzFor,centsBetween,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261126-1';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 import {createTools} from './tools.js?v=20261125-7';
 import {createPracticeSession} from './session.js?v=20261125-7';
@@ -64,7 +64,7 @@ function setSelection({base,raga}){
   if(busy()||!SHRUTHIS.includes(base)||!RAGAS[raga]?.notes)return;
   settings.base=base;settings.raga=raga;RAGA_NOTES=RAGAS[raga].notes;SWARAS=practiceSwaras(RAGAS[raga]);
   samples=[];live=null;attempt=1;
-  if(drone)sound.toggleDrone(base,true);
+  if(drone)sound.toggleDrone(base,true).catch(()=>{drone=false;updateDroneButton();toast('Shruthi drone could not restart. Try again.');});
   updateConfig();renderExercise();save();
   if(view==='library')renderLibrary();
   if(view==='progress')renderProgress();
@@ -221,7 +221,6 @@ async function begin(){
   controller=new AbortController();const signal=controller.signal;samples=[];live=null;previousLiveMidi=null;lastSample=0;lastLiveVoiceAt=0;previewing=false;answers=[];updateAnswerEntry();$('exercise-panel').classList.remove('show-result','memory-result');$('feedback').hidden=true;$('answer-options').hidden=true;resetReadings();resetPitchFill();
   try{
     setPhase('preparing',isIdentification()?'Preparing the reference.':'Waiting for microphone access…');await sound.unlock();throwIfAborted(signal);
-    if(drone){sound.stopDrone();drone=false;updateDroneButton();}
     if(!isIdentification()){await sound.microphone(signal);if(signal.aborted)return;sound.analyser.fftSize=4096;sound.analyser.smoothingTimeConstant=0;micBuffer=new Float32Array(sound.analyser.fftSize);}
     if(isIdentification()){await playReferences(reference,signal,true);setPhase('answer',answerPrompt());$('answer-options').hidden=false;$('answer-options').innerHTML=availableIndices().sort((a,b)=>SWARAS[a].offset-SWARAS[b].offset).map(i=>`<button data-answer="${i}">${swaraLabel(i)}</button>`).join('');updateAnswerEntry();return;}
     if(mode==='sing'){
@@ -330,7 +329,7 @@ function nextExercise(){
   if(mode==='sing')begin();
 }
 function updateDaily(){const today=new Date().toDateString();const n=history.filter(h=>new Date(h.time).toDateString()===today).length;$('today-count').innerHTML=`${n} <span>/ 8</span>`;$('goal-ring').style.strokeDashoffset=String(125.67*(1-Math.min(n/8,1)));}
-function updateDroneButton(){$('drone-toggle').setAttribute('aria-pressed',String(drone));$('drone-status').textContent=drone?'On':'Off';}
+function updateDroneButton(){$('drone-toggle').setAttribute('aria-pressed',String(drone));$('drone-toggle').setAttribute('aria-label',`Shruthi drone: ${drone?'on':'off'}; Pa, Sa, Sa, one second each`);$('drone-status').textContent=drone?'On':'Off';}
 function showView(next){
   if(view!==next){
     if(busy())cancelExercise();
@@ -340,7 +339,6 @@ function showView(next){
     if(view==='sarali')sarali?.stop();
     if(view==='alankara')alankara?.stop();
     sound.stopNotes();
-    if((next==='tools'||next==='session'||next==='sarali'||next==='alankara')&&drone){sound.stopDrone();drone=false;updateDroneButton();}
   }
   view=next;
   document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==`${next}-view`);
@@ -388,7 +386,7 @@ document.querySelectorAll('#octave-options input').forEach(input=>input.addEvent
 }));
 $('settings-dialog').querySelector('form').addEventListener('submit',event=>{if(event.submitter?.value!=='save')return;settings.level=$('level-select').value;settings.duration=$('duration-select').value;settings.response=Number($('response-select').value);setSelection({base:Number($('shruthi-select').value),raga:$('raga-select').value});toast('Your practice settings are saved.');});
 $('help-open').onclick=()=>$('help-dialog').showModal();
-$('drone-toggle').onclick=async()=>{if(busy()){toast('The drone is paused during pitch evaluation. Try it between exercises.');return;}try{drone=!drone;await sound.toggleDrone(settings.base,drone);updateDroneButton();}catch{drone=false;updateDroneButton();toast('Audio could not start. Try again.');}};
+$('drone-toggle').onclick=async()=>{const button=$('drone-toggle'),next=!drone;button.disabled=true;try{await sound.toggleDrone(settings.base,next);drone=next;updateDroneButton();}catch{drone=false;updateDroneButton();toast('Audio could not start. Try again.');}finally{button.disabled=false;}};
 $('answer-options').onclick=e=>{const b=e.target.closest('[data-answer]');if(b)answer(Number(b.dataset.answer));};
 $('answer-undo').onclick=()=>{if(phase==='answer'&&answers.length){answers.pop();updateAnswerEntry();}};
 $('answer-clear').onclick=()=>{if(phase==='answer'&&answers.length){answers=[];updateAnswerEntry();}};
@@ -399,10 +397,10 @@ const tabs=[...document.querySelectorAll('[data-mode]')];tabs.forEach((b,i)=>{b.
 document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{cancelExercise();step=Number(b.dataset.step);mode='sing';attempt=1;samples=[];syncPath();renderExercise();showView('practice');begin();});
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>showView(b.dataset.view));
 document.querySelector('.brand').onclick=e=>{e.preventDefault();showView('practice');};
-document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();stopComparison();tools?.stop();session?.stop();sarali?.stop();alankara?.stop();sound.stopDrone();drone=false;updateDroneButton();}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();stopComparison();tools?.stop();session?.stop();sarali?.stop();alankara?.stop();}});
 window.addEventListener('pagehide',()=>{stopComparison();session?.stop();sarali?.stop();alankara?.stop();sound.shutdown();});
 tools=createTools({sound,getSettings:()=>settings,getNotes:()=>RAGA_NOTES,onSelection:setSelection});
 session=createPracticeSession({sound,getSettings:()=>settings,onSelection:setSelection});
 sarali=createSaraliVarasai({sound,getSettings:()=>settings,onSelection:setSelection});
 alankara=createAlankaras({sound,getSettings:()=>settings,onSelection:setSelection});
-updateConfig();syncPath();renderExercise();
+updateConfig();updateDroneButton();syncPath();renderExercise();

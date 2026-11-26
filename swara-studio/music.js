@@ -87,7 +87,7 @@ export function scorePitch(samples,targets,secondsPerNote,base,tolerance,notes=R
   return {details,accuracy,pass:details.every(d=>d.pass),voiced:details.some(d=>d.detected)};
 }
 export class SoundEngine{
-  constructor(){this.ctx=null;this.nodes=new Set();this.drone=[];this.stream=null;this.recorder=null;this.chunks=[];this.source=null;this.analyser=null;this.recordUrl=null;this.clickBuffer=null;}
+  constructor(){this.ctx=null;this.nodes=new Set();this.drone=null;this.droneBuffers=new Map();this.stream=null;this.recorder=null;this.chunks=[];this.source=null;this.analyser=null;this.recordUrl=null;this.clickBuffer=null;}
   async unlock(){this.ctx??=new (window.AudioContext||window.webkitAudioContext)();if(this.ctx.state!=='running')await this.ctx.resume();}
   scheduleReference(midi,when,duration,volume=.19){return this.scheduleTone(midiHz(midi),when,duration,volume);}
   reference(midi,duration,variant='S',volume=.19){return this.scheduleReference(midi,this.ctx.currentTime,duration,volume);}
@@ -130,18 +130,39 @@ export class SoundEngine{
     await this.unlock();
     this.stopDrone();
     if(!on)return;
-    const ctx=this.ctx,sa=midiHz(base);
-    // Keep the selected Sa as the fundamental, with quiet upper harmonics.
-    [1,2,3].forEach((harmonic,i)=>{
-      const osc=ctx.createOscillator(),gain=ctx.createGain();
-      osc.frequency.value=sa*harmonic;
-      gain.gain.value=0;
-      gain.gain.linearRampToValueAtTime([.045,.012,.006][i],ctx.currentTime+.5);
-      osc.connect(gain);gain.connect(ctx.destination);osc.start();
-      this.drone.push({osc,gain});
-    });
+    const ctx=this.ctx,source=ctx.createBufferSource(),gain=ctx.createGain();
+    source.buffer=this.droneBuffer(base);
+    source.loop=true;
+    source.connect(gain);gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0,ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(.42,ctx.currentTime+.12);
+    source.start();
+    this.drone={source,gain};
   }
-  stopDrone(){for(const{osc,gain}of this.drone){try{osc.stop();gain.disconnect();}catch{}}this.drone=[];}
+  droneBuffer(base){
+    if(this.droneBuffers.has(base))return this.droneBuffers.get(base);
+    const rate=this.ctx.sampleRate,perNote=Math.round(rate),buffer=this.ctx.createBuffer(1,perNote*3,rate),data=buffer.getChannelData(0);
+    const partials=[1,.36,.21,.13,.085,.055,.035];
+    [base-5,base,base].forEach((midi,noteIndex)=>{
+      const hz=midiHz(midi);
+      for(let sample=0;sample<perNote;sample++){
+        const t=sample/rate,attack=Math.min(1,t/.012),release=Math.min(1,(1-t)/.085);
+        const envelope=attack*Math.max(0,release)*Math.exp(-.36*t);
+        const shimmer=1+.025*Math.sin(2*Math.PI*1.7*t);
+        let value=0;
+        partials.forEach((amplitude,index)=>{value+=amplitude*Math.sin(2*Math.PI*hz*(index+1)*t+.17*(index+1));});
+        data[noteIndex*perNote+sample]=Math.max(-1,Math.min(1,value*envelope*shimmer*.38));
+      }
+    });
+    this.droneBuffers.set(base,buffer);
+    return buffer;
+  }
+  stopDrone(){
+    if(!this.drone||!this.ctx)return;
+    const {source,gain}=this.drone,now=this.ctx.currentTime;
+    this.drone=null;
+    try{gain.gain.cancelScheduledValues(now);gain.gain.setValueAtTime(gain.gain.value,now);gain.gain.linearRampToValueAtTime(0,now+.08);source.stop(now+.09);source.onended=()=>{source.disconnect();gain.disconnect();};}catch{source.disconnect();gain.disconnect();}
+  }
   async microphone(signal){
     if(!navigator.mediaDevices?.getUserMedia)throw new Error('Microphone access needs HTTPS or localhost in a supported browser.');
     const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});
