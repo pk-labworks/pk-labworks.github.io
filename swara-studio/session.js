@@ -96,7 +96,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       <div class="session-save-row"><label for="session-name">Exercise name<input id="session-name" type="text" maxlength="60" placeholder="e.g., Mohanam ascent"></label><button id="session-save" class="secondary-button" type="button">Save exercise</button></div>
       <p id="session-error" class="session-error" role="alert" hidden></p>
       <div class="session-actions"><button id="session-play" class="primary-button" type="button">Learn <span aria-hidden="true">→</span></button><button id="session-just-sing" class="secondary-button" type="button">Recall</button><button id="session-stop" class="secondary-button" type="button" disabled>Stop</button><label class="session-mic-label"><input id="session-mic" type="checkbox" checked> Show my sung note</label></div>
-      <p id="session-status" class="session-status" role="status">Learn plays each line first. Recall gives a four-beat count-in at the start, then beat clicks at the set tempo without swara playback.</p>
+      <p id="session-status" class="session-status" role="status">Learn plays each line, then you sing. Recall starts with a four-beat count-in. A click marks every beat.</p>
       <div id="session-stage" class="session-stage"><div class="session-stage-top"><span class="label">CURRENT SWARA</span><span id="session-count">—</span></div><strong id="session-current">—</strong>${liveReadoutMarkup('session')}<div id="session-line-feedback" class="pattern-line-feedback" role="status" aria-live="polite" hidden></div><div id="session-sequence" class="session-sequence"></div><div class="session-progress"><i id="session-progress-fill"></i></div></div><div id="session-results" class="session-results" hidden></div></div>`;
     $('session-base').value=String(state.base);$('session-raga').value=state.raga;$('session-tempo').value=String(state.tempo);$('session-notes').value=state.notes;$('session-name').value=state.name||'';
     $('session-base').onchange=()=>{state.base=Number($('session-base').value);save();refreshPreview();onSelection?.({base:state.base,raga:state.raga});};
@@ -171,7 +171,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     return lines;
   }
   function refreshPreview(){
-    if(!running){$('session-current').textContent='—';$('session-progress-fill').style.width='0';clearLiveReadout(host,'session');previousMidi=null;$('session-status').textContent='Learn plays each line first. Recall gives a four-beat count-in at the start, then beat clicks at the set tempo without swara playback.';$('session-line-feedback').hidden=true;$('session-results').hidden=true;}
+    if(!running){$('session-current').textContent='—';$('session-progress-fill').style.width='0';clearLiveReadout(host,'session');previousMidi=null;$('session-status').textContent='Learn plays each line, then you sing. Recall starts with a four-beat count-in. A click marks every beat.';$('session-line-feedback').hidden=true;$('session-results').hidden=true;}
     try{
       const lines=readLines(),notes=phraseSwaras(RAGAS[state.raga]);
       $('session-error').hidden=true;
@@ -289,6 +289,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
           if(!justSing){
             const refStart=sound.ctx.currentTime+.1;
             scheduleLine(line,notes,beat,refStart);
+            sound.scheduleClickTrack(refStart,beat,line.indices.length,0);
             clearLiveReadout(host,'session');
             $('session-status').textContent=`Listen to line ${lineIndex+1}${attempt>1?` again (try ${attempt} of 3)`:''}.`;
             await runPhase({line,lineIndex,lineCount:lines.length,attempt,maxAttempts,phase:'reference',beat,notes,token,startAt:refStart});
@@ -303,6 +304,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
               $('session-status').textContent=`Sing line ${lineIndex+1} after ${remaining} ${remaining===1?'beat':'beats'}.`;
             }})
             :sound.ctx.currentTime+.1;
+          if(!justSing)sound.scheduleClickTrack(singStart,beat,line.indices.length,0);
           $('session-status').textContent=`Sing line ${lineIndex+1} now.`;
           const samples=await runPhase({line,lineIndex,lineCount:lines.length,attempt,maxAttempts,phase:'sing',beat,notes,token,startAt:singStart});
           host.querySelector('.line-live-readout').hidden=true;
