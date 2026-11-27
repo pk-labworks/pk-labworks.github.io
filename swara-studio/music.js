@@ -30,6 +30,9 @@ export function practiceSwaras(raga){
 }
 export const PITCH_POSITION_LABELS=['Sa','R₁','R₂/G₁','R₃/G₂','G₃','M₁','M₂','Pa','D₁','D₂/N₁','D₃/N₂','N₃'];
 export const midiHz = midi => 440 * 2 ** ((midi-69)/12);
+const REFERENCE_HARMONICS=[1,.31,.14,.06];
+const REFERENCE_HARMONIC_TOTAL=REFERENCE_HARMONICS.reduce((sum,part)=>sum+part,0);
+const DRONE_BEAT_SECONDS=60/30;
 export const centsBetween = (hz, target) => 1200*Math.log2(hz/target);
 export const noteName = midi => ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][((Math.round(midi)%12)+12)%12] + (Math.floor(Math.round(midi)/12)-1);
 export const swaraHz = (base,index,notes=RAGAS[DEFAULT_RAGA].notes) => midiHz(base+notes[index].offset);
@@ -95,8 +98,7 @@ export class SoundEngine{
   scheduleTone(hz,when,duration,volume=.19){
     const ctx=this.ctx,master=ctx.createGain();master.connect(ctx.destination);
     const nodes=[];
-    const harmonics=[1,.31,.14,.06];
-    harmonics.forEach((amplitude,h)=>{const osc=ctx.createOscillator(),gain=ctx.createGain();osc.frequency.value=hz*(h+1);osc.type='sine';gain.gain.value=amplitude/harmonics.reduce((s,x)=>s+x,0);osc.connect(gain);gain.connect(master);osc.start(when);osc.stop(when+duration+.09);nodes.push(osc,gain);});
+    REFERENCE_HARMONICS.forEach((amplitude,h)=>{const osc=ctx.createOscillator(),gain=ctx.createGain();osc.frequency.value=hz*(h+1);osc.type='sine';gain.gain.value=amplitude/REFERENCE_HARMONIC_TOTAL;osc.connect(gain);gain.connect(master);osc.start(when);osc.stop(when+duration+.09);nodes.push(osc,gain);});
     master.gain.setValueAtTime(0,when);master.gain.linearRampToValueAtTime(volume,when+.035);
     master.gain.exponentialRampToValueAtTime(volume*.55,when+Math.min(duration*.5,1));
     master.gain.setValueAtTime(volume*.55,when+duration-.04);
@@ -135,23 +137,22 @@ export class SoundEngine{
     source.loop=true;
     source.connect(gain);gain.connect(ctx.destination);
     gain.gain.setValueAtTime(0,ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(.42,ctx.currentTime+.12);
+    gain.gain.linearRampToValueAtTime(1,ctx.currentTime+.12);
     source.start();
     this.drone={source,gain};
   }
   droneBuffer(base){
     if(this.droneBuffers.has(base))return this.droneBuffers.get(base);
-    const rate=this.ctx.sampleRate,perNote=Math.round(rate),buffer=this.ctx.createBuffer(1,perNote*3,rate),data=buffer.getChannelData(0);
-    const partials=[1,.36,.21,.13,.085,.055,.035];
+    const rate=this.ctx.sampleRate,perNote=Math.round(rate*DRONE_BEAT_SECONDS),buffer=this.ctx.createBuffer(1,perNote*3,rate),data=buffer.getChannelData(0);
+    const releaseFrames=Math.ceil(rate*.06);
     [base-5,base,base].forEach((midi,noteIndex)=>{
       const hz=midiHz(midi);
-      for(let sample=0;sample<perNote;sample++){
-        const t=sample/rate,attack=Math.min(1,t/.012),release=Math.min(1,(1-t)/.085);
-        const envelope=attack*Math.max(0,release)*Math.exp(-.36*t);
-        const shimmer=1+.025*Math.sin(2*Math.PI*1.7*t);
+      for(let sample=0;sample<perNote+releaseFrames;sample++){
+        const t=sample/rate,decayAt=Math.min(DRONE_BEAT_SECONDS*.5,1),sustain=.19*.55;
+        const envelope=t<.035?.19*t/.035:t<decayAt?.19*Math.exp(Math.log(.55)*(t-.035)/(decayAt-.035)):t<DRONE_BEAT_SECONDS-.04?sustain:sustain*(DRONE_BEAT_SECONDS+.06-t)/.1;
         let value=0;
-        partials.forEach((amplitude,index)=>{value+=amplitude*Math.sin(2*Math.PI*hz*(index+1)*t+.17*(index+1));});
-        data[noteIndex*perNote+sample]=Math.max(-1,Math.min(1,value*envelope*shimmer*.38));
+        REFERENCE_HARMONICS.forEach((amplitude,index)=>{value+=amplitude/REFERENCE_HARMONIC_TOTAL*Math.sin(2*Math.PI*hz*(index+1)*t);});
+        data[(noteIndex*perNote+sample)%data.length]+=value*Math.max(0,envelope);
       }
     });
     this.droneBuffers.set(base,buffer);

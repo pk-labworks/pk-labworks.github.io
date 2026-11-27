@@ -1,4 +1,4 @@
-import {RAGA_LIST,RAGAS,DEFAULT_RAGA,practiceSwaras,swaraHz as swaraHzFor,centsBetween,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261126-1';
+import {RAGA_LIST,RAGAS,DEFAULT_RAGA,practiceSwaras,swaraHz as swaraHzFor,centsBetween,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261127-3';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 import {createTools} from './tools.js?v=20261125-7';
 import {createPracticeSession} from './session.js?v=20261127-2';
@@ -330,7 +330,7 @@ function nextExercise(){
   if(mode==='sing')begin();
 }
 function updateDaily(){const today=new Date().toDateString();const n=history.filter(h=>new Date(h.time).toDateString()===today).length;$('today-count').innerHTML=`${n} <span>/ 8</span>`;$('goal-ring').style.strokeDashoffset=String(125.67*(1-Math.min(n/8,1)));}
-function updateDroneButton(){$('drone-toggle').setAttribute('aria-pressed',String(drone));$('drone-toggle').setAttribute('aria-label',`Shruthi drone: ${drone?'on':'off'}; Pa, Sa, Sa, one second each`);$('drone-status').textContent=drone?'On':'Off';}
+function updateDroneButton(){$('drone-toggle').setAttribute('aria-pressed',String(drone));$('drone-toggle').setAttribute('aria-label',`Shruthi drone: ${drone?'on':'off'}; lower Pa, Sa, Sa at 30 BPM`);$('drone-status').textContent=drone?'On':'Off';}
 function showView(next){
   if(view!==next){
     if(busy())cancelExercise();
