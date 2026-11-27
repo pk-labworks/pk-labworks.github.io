@@ -2,7 +2,7 @@ import {RAGAS,phraseSwaras,midiHz,centsBetween} from './music.js?v=20261127-6';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261127-1';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
-import {countInForLine,feedbackPauseSeconds} from './tempo-guide.js?v=20261127-8';
+import {feedbackPauseSeconds} from './tempo-guide.js?v=20261127-8';
 import {noteWindows,setPitchCircleNote} from './pitch-circle.js?v=20261125-1';
 
 const STORAGE_KEY='swara-studio-custom-session-v1';
@@ -96,7 +96,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       <div class="session-save-row"><label for="session-name">Exercise name<input id="session-name" type="text" maxlength="60" placeholder="e.g., Mohanam ascent"></label><button id="session-save" class="secondary-button" type="button">Save exercise</button></div>
       <p id="session-error" class="session-error" role="alert" hidden></p>
       <div class="session-actions"><button id="session-play" class="primary-button" type="button">Learn <span aria-hidden="true">→</span></button><button id="session-just-sing" class="secondary-button" type="button">Recall</button><button id="session-stop" class="secondary-button" type="button" disabled>Stop</button><label class="session-mic-label"><input id="session-mic" type="checkbox" checked> Show my sung note</label></div>
-      <p id="session-status" class="session-status" role="status">Learn plays each line, then you sing. Recall starts with a four-beat count-in. A click marks every beat.</p>
+      <p id="session-status" class="session-status" role="status">Learn: hear, then sing each line. Recall: Ready, Go, then sing through. Clicks mark the tempo.</p>
       <div id="session-stage" class="session-stage"><div class="session-stage-top"><span class="label">CURRENT SWARA</span><span id="session-count">—</span></div><strong id="session-current">—</strong>${liveReadoutMarkup('session')}<div id="session-line-feedback" class="pattern-line-feedback" role="status" aria-live="polite" hidden></div><div id="session-sequence" class="session-sequence"></div><div class="session-progress"><i id="session-progress-fill"></i></div></div><div id="session-results" class="session-results" hidden></div></div>`;
     $('session-base').value=String(state.base);$('session-raga').value=state.raga;$('session-tempo').value=String(state.tempo);$('session-notes').value=state.notes;$('session-name').value=state.name||'';
     $('session-base').onchange=()=>{state.base=Number($('session-base').value);save();refreshPreview();onSelection?.({base:state.base,raga:state.raga});};
@@ -171,7 +171,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     return lines;
   }
   function refreshPreview(){
-    if(!running){$('session-current').textContent='—';$('session-progress-fill').style.width='0';clearLiveReadout(host,'session');previousMidi=null;$('session-status').textContent='Learn plays each line, then you sing. Recall starts with a four-beat count-in. A click marks every beat.';$('session-line-feedback').hidden=true;$('session-results').hidden=true;}
+    if(!running){$('session-current').textContent='—';$('session-progress-fill').style.width='0';clearLiveReadout(host,'session');previousMidi=null;$('session-status').textContent='Learn: hear, then sing each line. Recall: Ready, Go, then sing through. Clicks mark the tempo.';$('session-line-feedback').hidden=true;$('session-results').hidden=true;}
     try{
       const lines=readLines(),notes=phraseSwaras(RAGAS[state.raga]);
       $('session-error').hidden=true;
@@ -205,7 +205,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
   async function waitUntil(time,token){
     while(sound.ctx.currentTime<time){
       if(token!==runId)throw new DOMException('Stopped','AbortError');
-      await new Promise(resolve=>setTimeout(resolve,50));
+      await new Promise(resolve=>setTimeout(resolve,16));
     }
     if(token!==runId)throw new DOMException('Stopped','AbortError');
   }
@@ -217,14 +217,14 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     });
     segments.forEach(({midi,beatIndex,beats})=>sound.scheduleReference(midi,startAt+beatIndex*beat,beats*beat));
   }
-  async function runPhase({line,lineIndex,lineCount,attempt,maxAttempts,phase,beat,notes,token,startAt}){
+  async function runPhase({line,lineIndex,lineCount,attempt,maxAttempts,phase,beat,notes,token,startAt,preserveReadout=false,singLabel='Sing'}){
     const duration=line.indices.length*beat,samples=[];
     const windows=noteWindows(line.indices.map((index,position)=>({index,hold:line.tokens[position]==='~'})),item=>midiHz(state.base+notes[item.index].offset));
     const tuningTolerance=({beginner:35,intermediate:25,advanced:15})[getSettings().level]||35;
     showLineWindow(lineIndex);
     host.querySelector('.line-live-readout').hidden=phase!=='sing'||!$('session-mic').checked;
     if(phase==='reference'){clearLiveReadout(host,'session');previousMidi=null;lastVoiceAt=0;}
-    if(phase==='sing'){clearLiveReadout(host,'session');previousMidi=null;lastVoiceAt=0;}
+    if(phase==='sing'&&!preserveReadout){clearLiveReadout(host,'session');previousMidi=null;lastVoiceAt=0;}
     const animate=()=>{
       if(!running||token!==runId)return;
       const now=sound.ctx.currentTime,elapsed=Math.max(0,now-startAt);
@@ -232,7 +232,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       const window=windows[current],noteKey=`${lineIndex}:${attempt}:${window.start}`;
       if(phase==='sing')setPitchCircleNote(host,'session',noteKey);
       $('session-current').textContent=swaraLabel(notes[line.indices[current]]);
-      $('session-count').textContent=`Line ${lineIndex+1} of ${lineCount} · ${phase==='reference'?'Listen':'Sing'}${maxAttempts>1?` · try ${attempt} of ${maxAttempts}`:''}`;
+      $('session-count').textContent=`Line ${lineIndex+1} of ${lineCount} · ${phase==='reference'?'Listen':singLabel}${maxAttempts>1?` · try ${attempt} of ${maxAttempts}`:''}`;
       $('session-progress-fill').style.width=`${Math.min(100,100*elapsed/duration)}%`;
       host.querySelectorAll('[data-line][data-beat]').forEach(el=>el.classList.toggle('current',Number(el.dataset.line)===lineIndex&&Number(el.dataset.beat)===current));
       if(phase==='sing'&&micActive&&now>=startAt&&now-lastMicFrame>=.06){
@@ -281,30 +281,41 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       const scored=micActive,results=[];running=true;host.classList.add('session-practicing');
       showLineWindow(0);
       $('session-stage').scrollIntoView({block:'center'});
-      if(justSing){$('session-status').textContent=`Count in at ${state.tempo} BPM.`;$('session-current').textContent='Get ready';$('session-count').textContent=`Line 1 of ${lines.length} · Recall`;}
+      if(justSing){
+        const totalBeats=lines.reduce((sum,line)=>sum+line.indices.length,0);
+        const countAt=sound.ctx.currentTime+.1;
+        const singStart=sound.scheduleClickTrack(countAt,beat,totalBeats,2);
+        $('session-status').textContent=`Ready, go, then sing every line at ${state.tempo} BPM.`;
+        $('session-count').textContent='Two-beat start · Recall';
+        await waitUntil(countAt,token);
+        $('session-current').textContent='Ready';
+        await waitUntil(countAt+beat,token);
+        $('session-current').textContent='Go';
+        await waitUntil(singStart,token);
+        let elapsedBeats=0;
+        for(let lineIndex=0;lineIndex<lines.length;lineIndex++){
+          const line=lines[lineIndex],startAt=singStart+elapsedBeats*beat;
+          const samples=await runPhase({line,lineIndex,lineCount:lines.length,attempt:1,maxAttempts:1,phase:'sing',beat,notes,token,startAt,preserveReadout:lineIndex>0,singLabel:'Recall'});
+          results.push({attempts:[scorePhraseLine(samples,line.indices,beat,state.base,notes,tolerance)]});
+          elapsedBeats+=line.indices.length;
+        }
+        host.querySelector('.line-live-readout').hidden=true;
+        stop('Session complete.');showLineWindow(lines.length-1);showResults(results,notes,scored,tolerance,{justSing:true});
+        return;
+      }
       for(let lineIndex=0;lineIndex<lines.length;lineIndex++){
-        const line=lines[lineIndex],attempts=[],maxAttempts=justSing?1:(scored?3:1);
+        const line=lines[lineIndex],attempts=[],maxAttempts=scored?3:1;
         for(let attempt=1;attempt<=maxAttempts;attempt++){
           $('session-line-feedback').hidden=true;
-          if(!justSing){
-            const refStart=sound.ctx.currentTime+.1;
-            scheduleLine(line,notes,beat,refStart);
-            sound.scheduleClickTrack(refStart,beat,line.indices.length,0);
-            clearLiveReadout(host,'session');
-            $('session-status').textContent=`Listen to line ${lineIndex+1}${attempt>1?` again (try ${attempt} of 3)`:''}.`;
-            await runPhase({line,lineIndex,lineCount:lines.length,attempt,maxAttempts,phase:'reference',beat,notes,token,startAt:refStart});
-            await waitUntil(sound.ctx.currentTime+.25,token);
-          }
-          const singStart=justSing
-            ?await countInForLine({sound,beat,lineBeats:line.indices.length,countInBeats:lineIndex===0?4:0,waitUntil,token,onBeat:remaining=>{
-              showLineWindow(lineIndex);
-              $('session-line-feedback').hidden=true;
-              $('session-current').textContent=String(remaining);
-              $('session-count').textContent=`Line ${lineIndex+1} of ${lines.length} · Count in · ${state.tempo} BPM`;
-              $('session-status').textContent=`Sing line ${lineIndex+1} after ${remaining} ${remaining===1?'beat':'beats'}.`;
-            }})
-            :sound.ctx.currentTime+.1;
-          if(!justSing)sound.scheduleClickTrack(singStart,beat,line.indices.length,0);
+          const refStart=sound.ctx.currentTime+.1;
+          scheduleLine(line,notes,beat,refStart);
+          sound.scheduleClickTrack(refStart,beat,line.indices.length,0);
+          clearLiveReadout(host,'session');
+          $('session-status').textContent=`Listen to line ${lineIndex+1}${attempt>1?` again (try ${attempt} of 3)`:''}.`;
+          await runPhase({line,lineIndex,lineCount:lines.length,attempt,maxAttempts,phase:'reference',beat,notes,token,startAt:refStart});
+          await waitUntil(sound.ctx.currentTime+.25,token);
+          const singStart=sound.ctx.currentTime+.1;
+          sound.scheduleClickTrack(singStart,beat,line.indices.length,0);
           $('session-status').textContent=`Sing line ${lineIndex+1} now.`;
           const samples=await runPhase({line,lineIndex,lineCount:lines.length,attempt,maxAttempts,phase:'sing',beat,notes,token,startAt:singStart});
           host.querySelector('.line-live-readout').hidden=true;
@@ -312,9 +323,9 @@ export function createPracticeSession({sound,getSettings,onSelection}){
             const result=scorePhraseLine(samples,line.indices,beat,state.base,notes,tolerance);
             attempts.push(result);
             const weak=[...new Set(result.details.filter(note=>note.score<60).map(note=>swaraLabel(notes[note.index])))];
-            const retry=!justSing&&shouldRepeatLine(result.score,attempt);
+            const retry=shouldRepeatLine(result.score,attempt);
             const advance=lineIndex===lines.length-1?'See your session score.':'Continue to the next line.';
-            $('session-line-feedback').innerHTML=`<strong>Line ${lineIndex+1}: ${result.score}%</strong><span>${justSing?'Recall':`Try ${attempt} of ${maxAttempts}`}</span><p>${weak.length?`Practice ${weak.join(', ')}. `:''}${retry?'Listen and sing this line again.':justSing&&result.score<60?`${advance} You can practice with Learn.`:advance}</p>`;
+            $('session-line-feedback').innerHTML=`<strong>Line ${lineIndex+1}: ${result.score}%</strong><span>Try ${attempt} of ${maxAttempts}</span><p>${weak.length?`Practice ${weak.join(', ')}. `:''}${retry?'Listen and sing this line again.':advance}</p>`;
             $('session-line-feedback').hidden=false;
             $('session-line-feedback').scrollIntoView({block:'nearest'});
             await waitUntil(sound.ctx.currentTime+feedbackPauseSeconds(retry),token);
@@ -323,7 +334,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
         }
         results.push({attempts});
       }
-      stop('Session complete.');showLineWindow(lines.length-1);showResults(results,notes,scored,tolerance,{justSing});
+      stop('Session complete.');showLineWindow(lines.length-1);showResults(results,notes,scored,tolerance);
     }catch(error){if(token!==runId||error.name==='AbortError')return;stop(error.message||'The session could not start.');setError(error.message||'The session could not start.');}
   }
   render();
