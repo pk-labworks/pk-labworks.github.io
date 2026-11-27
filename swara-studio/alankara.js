@@ -1,7 +1,7 @@
 import {RAGAS,midiHz} from './music.js?v=20261125-5';
 import {selectionFields} from './selection.js?v=20261122-8';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
-import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261125-7';
+import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261127-1';
 import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261125-7';
 import {countInForLine} from './tempo-guide.js?v=20261125-7';
 import {noteWindows,setPitchCircleNote} from './pitch-circle.js?v=20261125-1';
@@ -143,6 +143,7 @@ export function createAlankaras({sound,getSettings,onSelection}){
     sound.stopNotes();
     if(micActive){sound.releaseMic();micActive=false;micBuffer=null;}
     clearLiveReadout(host,'alankara');previousMidi=null;
+    const readout=host.querySelector('.line-live-readout');if(readout)readout.hidden=true;
     host.querySelectorAll('[data-alankara-line]').forEach(row=>{row.hidden=false;row.classList.remove('current');});
     host.querySelectorAll('[data-alankara-beat]').forEach(note=>note.classList.remove('current-beat'));
     const play=$('alankara-practice');
@@ -205,6 +206,7 @@ export function createAlankaras({sound,getSettings,onSelection}){
     let lastLabel='—';
     const cueLabels=beats.map(item=>item.hold?lastLabel:(lastLabel=item.label));
     showLineWindow(lineIndex);
+    host.querySelector('.line-live-readout').hidden=phase!=='sing';
     if(phase==='listen'){clearLiveReadout(host,'alankara');previousMidi=null;lastVoiceAt=0;$('alankara-line-feedback').hidden=true;}
     if(phase==='sing'){$('alankara-line-feedback').hidden=true;clearLiveReadout(host,'alankara');previousMidi=null;lastVoiceAt=0;}
     const animate=()=>{
@@ -268,16 +270,19 @@ export function createAlankaras({sound,getSettings,onSelection}){
             }})
             :sound.ctx.currentTime+.1;
           const samples=await runPhase({lineIndex,beats,phase:'sing',attempt,maxAttempts,beat,base:settings.base,lineCount:lines.length,token,startAt:singStart});
+          host.querySelector('.line-live-readout').hidden=true;
           if(micActive){
             const result=scorePatternLine(samples,beats,beat,settings.base,raga.notes,tolerance,noteCode);
             attempts.push(result);
             $('alankara-line-feedback').innerHTML=lineFeedbackMarkup(lineIndex,attempt,result,raga.notes,{singlePass:justSing,lastLine:lineIndex===lines.length-1});
             $('alankara-line-feedback').hidden=false;
+            $('alankara-line-feedback').scrollIntoView({block:'nearest'});
             await waitUntil(sound.ctx.currentTime+1.2,token);
             if(justSing||!shouldRetryPatternLine(result.score,attempt))break;
           }else{
             $('alankara-line-feedback').innerHTML=`<strong>Line ${lineIndex+1} complete</strong><p>Allow microphone access for a score.</p>`;
             $('alankara-line-feedback').hidden=false;
+            $('alankara-line-feedback').scrollIntoView({block:'nearest'});
             await waitUntil(sound.ctx.currentTime+1.2,token);
           }
         }

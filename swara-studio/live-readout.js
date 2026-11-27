@@ -5,7 +5,7 @@ import {pitchCircleMarkup,resetPitchCircle,updatePitchCircle} from './pitch-circ
 const part=(host,prefix,name)=>host.querySelector(`#${prefix}-live-${name}`);
 
 export function liveReadoutMarkup(prefix){
-  return `<section class="swara-live-readout line-live-readout" aria-label="Current sung pitch"><div class="swara-live-note-row"><div><strong id="${prefix}-live-note" class="line-live-note" aria-live="polite">—</strong><span id="${prefix}-live-name" class="line-live-name">Your note will appear here</span></div><div class="swara-live-western"><strong id="${prefix}-live-western" class="line-live-western">—</strong><span id="${prefix}-live-hz" class="line-live-hz">— Hz</span></div></div>${pitchCircleMarkup(prefix)}<p id="${prefix}-live-cents" class="line-live-cents">Sing to see your tuning</p></section>`;
+  return `<section class="swara-live-readout line-live-readout" aria-label="Current sung pitch" hidden><div class="swara-live-note-row"><div><strong id="${prefix}-live-note" class="line-live-note" aria-live="polite">—</strong><span id="${prefix}-live-name" class="line-live-name">Your note will appear here</span></div><div class="swara-live-western"><strong id="${prefix}-live-western" class="line-live-western">—</strong><span id="${prefix}-live-hz" class="line-live-hz">— Hz</span></div></div>${pitchCircleMarkup(prefix)}<p id="${prefix}-live-cents" class="line-live-cents">Sing to see your tuning</p></section>`;
 }
 
 export function clearLiveReadout(host,prefix,{preserveCircle=false}={}){

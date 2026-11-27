@@ -1,9 +1,9 @@
 import {RAGA_LIST,RAGAS,DEFAULT_RAGA,practiceSwaras,swaraHz as swaraHzFor,centsBetween,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261126-1';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 import {createTools} from './tools.js?v=20261125-7';
-import {createPracticeSession} from './session.js?v=20261125-7';
-import {createSaraliVarasai} from './sarali.js?v=20261125-7';
-import {createAlankaras} from './alankara.js?v=20261125-7';
+import {createPracticeSession} from './session.js?v=20261127-1';
+import {createSaraliVarasai} from './sarali.js?v=20261127-1';
+import {createAlankaras} from './alankara.js?v=20261127-1';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
 const $=id=>document.getElementById(id);
 const sound=new SoundEngine();
@@ -34,6 +34,7 @@ function toast(message){$('toast').textContent=message;$('toast').hidden=false;c
 function referenceDuration(){return Number(settings.duration);}
 function setPhase(next,label,time=''){
   phase=next;
+  document.querySelector('.practice-layout').classList.toggle('showing-result',next==='result');
   $('phase-label').textContent=label;
   $('phase-time').textContent=time;
   document.querySelector('.phase-strip').hidden=next==='idle'||next==='result';

@@ -1,6 +1,6 @@
 import {RAGAS,practiceSwaras,midiHz,centsBetween} from './music.js?v=20261125-5';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
-import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261125-7';
+import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261127-1';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
 import {countInForLine} from './tempo-guide.js?v=20261125-7';
 import {noteWindows,setPitchCircleNote} from './pitch-circle.js?v=20261125-1';
@@ -102,7 +102,6 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     $('session-tempo').oninput=()=>{state.tempo=Number($('session-tempo').value);save();refreshPreview();};
     $('session-notes').oninput=()=>{state.notes=$('session-notes').value;state.source='';$('session-source').hidden=true;save();refreshPreview();};
     $('session-name').oninput=()=>{state.name=$('session-name').value;save();};
-    $('session-mic').onchange=()=>{host.querySelector('.line-live-readout').hidden=!$('session-mic').checked;};
     $('session-swatches').onclick=event=>{const button=event.target.closest('[data-code]');if(!button)return;const input=$('session-notes');const prefix=input.value;input.value=prefix?`${prefix}${prefix.endsWith('\n')?'':' '}${button.dataset.code}`:button.dataset.code;state.notes=input.value;state.source='';$('session-source').hidden=true;save();refreshPreview();input.focus();};
     $('session-play').onclick=()=>start();
     $('session-just-sing').onclick=()=>start({justSing:true});
@@ -111,7 +110,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     $('session-new').onclick=newExercise;
     $('session-delete').onclick=deleteSavedExercise;
     $('session-save').onclick=saveCurrentExercise;
-    renderSavedExercises();renderSwatches();refreshPreview();host.querySelector('.line-live-readout').hidden=!$('session-mic').checked;
+    renderSavedExercises();renderSwatches();refreshPreview();
     if(state.source){$('session-source').textContent=state.source;$('session-source').hidden=false;}
   }
   function renderSavedExercises(){
@@ -196,6 +195,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     sound.stopNotes();
     host.querySelectorAll('.session-score-line').forEach(row=>{row.hidden=false;row.classList.remove('active-line');});
     clearLiveReadout(host,'session');previousMidi=null;
+    const readout=host.querySelector('.line-live-readout');if(readout)readout.hidden=true;
     const play=$('session-play'),halt=$('session-stop');
     if(play){play.disabled=false;$('session-just-sing').disabled=false;halt.disabled=true;for(const id of ['session-base','session-raga','session-tempo','session-notes','session-name','session-mic','session-saved','session-new','session-save'])$(id).disabled=false;$('session-delete').disabled=!state.savedId;}
     if(message&&$('session-status'))$('session-status').textContent=message;
@@ -220,6 +220,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     const windows=noteWindows(line.indices.map((index,position)=>({index,hold:line.tokens[position]==='~'})),item=>midiHz(state.base+notes[item.index].offset));
     const tuningTolerance=({beginner:35,intermediate:25,advanced:15})[getSettings().level]||35;
     showLineWindow(lineIndex);
+    host.querySelector('.line-live-readout').hidden=phase!=='sing'||!$('session-mic').checked;
     if(phase==='reference'){clearLiveReadout(host,'session');previousMidi=null;lastVoiceAt=0;}
     if(phase==='sing'){clearLiveReadout(host,'session');previousMidi=null;lastVoiceAt=0;}
     const animate=()=>{
@@ -302,6 +303,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
             :sound.ctx.currentTime+.1;
           $('session-status').textContent=`Sing line ${lineIndex+1} now.`;
           const samples=await runPhase({line,lineIndex,lineCount:lines.length,attempt,maxAttempts,phase:'sing',beat,notes,token,startAt:singStart});
+          host.querySelector('.line-live-readout').hidden=true;
           if(scored){
             const result=scorePhraseLine(samples,line.indices,beat,state.base,notes,tolerance);
             attempts.push(result);
@@ -310,6 +312,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
             const advance=lineIndex===lines.length-1?'See your session score.':'Continue to the next line.';
             $('session-line-feedback').innerHTML=`<strong>Line ${lineIndex+1}: ${result.score}%</strong><span>${justSing?'Sing':`Try ${attempt} of ${maxAttempts}`}</span><p>${weak.length?`Practice ${weak.join(', ')}. `:''}${retry?'Listen and sing this line again.':justSing&&result.score<60?`${advance} You can practice with Listen and Sing.`:advance}</p>`;
             $('session-line-feedback').hidden=false;
+            $('session-line-feedback').scrollIntoView({block:'nearest'});
             await waitUntil(sound.ctx.currentTime+1.2,token);
             if(!retry)break;
           }
