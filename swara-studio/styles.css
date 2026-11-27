@@ -479,5 +479,13 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 @media(max-width:1050px){.start-grid{grid-template-columns:1fr}.start-purpose{grid-column:auto}}
 @media(max-width:620px){.start-card{padding:18px}.start-intro{font-size:18px}.start-selects,.start-notes{grid-template-columns:1fr}.start-note{padding:8px}.start-actions .primary-button,.start-actions .secondary-button{width:100%}}
 
-#sequential-option{margin-left:auto;font-weight:650;color:var(--green)}
+#sequential-option{margin-right:12px;font-weight:650;color:var(--green)}
 #session-view[data-preset=true] .saved-exercises,#session-view[data-preset=true] .session-notes-label,#session-view[data-preset=true] #session-notes,#session-view[data-preset=true] .session-octave-cue,#session-view[data-preset=true] .session-swatches,#session-view[data-preset=true] .session-save-row{display:none}
+
+.feedback-playback{display:flex;flex-wrap:wrap;gap:8px;margin:13px 0 5px}
+.feedback-playback .secondary-button{height:36px;min-width:155px;padding:0 12px;font-size:11px}
+.feedback-playback .secondary-button:disabled{cursor:default}
+.session-results .feedback-playback{margin:12px 0}
+@media(max-width:520px){.feedback-playback .secondary-button{flex:1;min-width:135px}}
+
+.practice-layout{grid-template-columns:minmax(0,1fr);max-width:760px;margin-inline:auto}

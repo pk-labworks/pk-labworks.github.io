@@ -2,7 +2,8 @@ import {RAGAS,midiHz} from './music.js?v=20261125-5';
 import {selectionFields} from './selection.js?v=20261122-8';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261127-1';
-import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261127-10';
+import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261127-12';
+import {playbackButtons,attachFeedbackPlayback} from './feedback-playback.js?v=20261127-12';
 import {countInForLine,feedbackPauseSeconds} from './tempo-guide.js?v=20261127-8';
 import {noteWindows,setPitchCircleNote} from './pitch-circle.js?v=20261125-1';
 
@@ -129,7 +130,7 @@ export function alankaraPattern(ragaId,index){
 export function createAlankaras({sound,getSettings,onSelection}){
   const host=document.getElementById('alankara-view');
   const $=id=>host.querySelector(`#${id}`);
-  let selected=0,tempo=50,running=false,runId=0,frame=0,micActive=false,micBuffer=null,previousMidi=null,lastMicSample=0,lastVoiceAt=0;
+  let selected=0,tempo=50,running=false,runId=0,frame=0,micActive=false,micBuffer=null,previousMidi=null,lastMicSample=0,lastVoiceAt=0,feedbackStop=null;
 
   function showLineWindow(lineIndex){
     host.querySelectorAll('[data-alankara-line]').forEach(row=>{
@@ -140,6 +141,7 @@ export function createAlankaras({sound,getSettings,onSelection}){
   }
   function stop(message=''){
     runId++;running=false;cancelAnimationFrame(frame);frame=0;
+    feedbackStop?.();feedbackStop=null;sound.finishRecording();
     sound.stopNotes();
     if(micActive){sound.releaseMic();micActive=false;micBuffer=null;}
     clearLiveReadout(host,'alankara');previousMidi=null;
@@ -156,14 +158,14 @@ export function createAlankaras({sound,getSettings,onSelection}){
   function render(){
     if(running)stop();
     const settings=getSettings(),raga=RAGAS[settings.raga],pattern=alankaraPattern(settings.raga,selected);
-    host.innerHTML=`<div class="session-heading"><p class="eyebrow">LEARNING PATH · 02</p><h1>Alankaras.</h1></div>
+    host.innerHTML=`<div class="session-heading"><p class="eyebrow">LEARNING PATH · 03</p><h1>Alankaras.</h1></div>
       <div class="sarali-panel alankara-panel"><div class="sarali-top">${selectionFields('alankara',settings)}</div>
       <p class="sarali-scale">${raga.notes.map(note=>note.variant).join(' &nbsp; ')}</p>
       <p class="sarali-instruction">Listen and Sing plays each line first. Sing gives a four-beat count-in at the start, then beat clicks at the set tempo without swara playback.</p>
       <label class="sarali-tempo-label">Tempo (BPM) <input id="alankara-tempo" type="number" min="30" max="300" step="1" value="${tempo}"></label>
       <div class="alankara-picker" role="group" aria-label="Alankara patterns">${ALANKARAS.map((item,i)=>`<button type="button" data-alankara="${i}" aria-pressed="${i===selected}"><span>${String(i+1).padStart(2,'0')}</span><strong>${item.short}</strong></button>`).join('')}</div>
       <div class="alankara-meta"><strong>${pattern.name}</strong><span>${pattern.beats} beats · ${pattern.groups.join(' + ')}</span></div>
-      <div class="sarali-actions"><button id="alankara-practice" class="primary-button" type="button">Listen and Sing</button><button id="alankara-just-sing" class="secondary-button" type="button">Sing</button><button id="alankara-next" class="secondary-button" type="button" hidden>Next alankara →</button></div>
+      <div class="sarali-actions"><button id="alankara-practice" class="primary-button" type="button">Listen and Sing</button><button id="alankara-just-sing" class="secondary-button" type="button">Sing</button><button id="alankara-next" class="secondary-button" type="button" hidden>Next alankara</button></div>
       <p id="alankara-status" class="session-status" role="status">Ready for pattern ${selected+1}.</p>
       <div id="alankara-stage" class="session-stage pattern-stage"><div class="session-stage-top"><span class="label">CURRENT SWARA</span><span id="alankara-count">${pattern.lines.length} lines</span></div><strong id="alankara-current">—</strong>
       <div class="sarali-score alankara-score"><h2>Pattern ${String(selected+1).padStart(2,'0')}</h2>${pattern.lines.map((bars,lineIndex)=>`<div class="sarali-score-line" data-alankara-line="${lineIndex}"><span class="sarali-line-number">${lineIndex+1}</span>${bars.map((bar,barIndex)=>`<span class="sarali-bar">${bar.map((beat,beatIndex)=>`<span class="${beat.hold?'hold':''}" data-alankara-beat="${bars.slice(0,barIndex).reduce((sum,part)=>sum+part.length,0)+beatIndex}" aria-label="${beat.hold?'Hold previous swara':beat.label}">${beat.label}</span>`).join('')}</span>`).join('')}</div>`).join('')}</div>
@@ -269,6 +271,7 @@ export function createAlankaras({sound,getSettings,onSelection}){
               $('alankara-status').textContent=`Sing line ${lineIndex+1} after ${remaining} ${remaining===1?'beat':'beats'}.`;
             }})
             :sound.ctx.currentTime+.1;
+          if(justSing&&lineIndex===0)sound.startRecording();
           const samples=await runPhase({lineIndex,beats,phase:'sing',attempt,maxAttempts,beat,base:settings.base,lineCount:lines.length,token,startAt:singStart});
           host.querySelector('.line-live-readout').hidden=true;
           if(micActive){
@@ -289,11 +292,13 @@ export function createAlankaras({sound,getSettings,onSelection}){
         }
         results.push({attempts});
       }
+      const recording=justSing?await sound.finishRecording():null;
       stop('Pattern complete. Continue with the next alankara or replay this one.');
       $('alankara-progress-fill').style.width='100%';showLineWindow(lines.length-1);$('alankara-next').hidden=false;
       const needsPractice=justSing&&results.some(line=>line.attempts[0]?.score<60);
-      $('alankara-results').innerHTML=patternSummaryMarkup(results,raga.notes,tolerance,{singlePass:justSing})+(needsPractice?'<button id="alankara-guided-retry" class="primary-button" type="button">Listen and Sing</button>':'');
+      $('alankara-results').innerHTML=patternSummaryMarkup(results,raga.notes,tolerance,{singlePass:justSing,playbackMarkup:justSing?playbackButtons('Play what you sang',!!recording):''})+(needsPractice?'<button id="alankara-guided-retry" class="primary-button" type="button">Listen and Sing</button>':'');
       $('alankara-results').hidden=false;
+      if(justSing)feedbackStop=attachFeedbackPlayback($('alankara-results'),{sound,playRequested:()=>{const start=sound.ctx.currentTime+.05;let elapsed=0;for(const line of lines){scheduleLine(line,notesByCode,settings.base,beat,start+elapsed);elapsed+=line.length*beat;}return elapsed+.05;},recording});
       if(needsPractice)$('alankara-guided-retry').onclick=()=>start();
       $('alankara-results').scrollIntoView({block:'nearest'});
     }catch(error){if(token!==runId||error.name==='AbortError')return;stop(error.message||'The pattern could not start.');}

@@ -2,7 +2,8 @@ import {RAGAS,midiHz} from './music.js?v=20261125-5';
 import {selectionFields} from './selection.js?v=20261122-8';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261127-1';
-import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261127-10';
+import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261127-12';
+import {playbackButtons,attachFeedbackPlayback} from './feedback-playback.js?v=20261127-12';
 import {countInForLine,feedbackPauseSeconds} from './tempo-guide.js?v=20261127-8';
 import {noteWindows,setPitchCircleNote} from './pitch-circle.js?v=20261125-1';
 
@@ -77,7 +78,7 @@ export function saraliPattern(ragaId,index){
 
 export function createSaraliVarasai({sound,getSettings,onSelection}){
   const host=document.getElementById('sarali-view');
-  let selected=0,tempo=50,running=false,runId=0,frame=0,micActive=false,micBuffer=null,previousMidi=null;
+  let selected=0,tempo=50,running=false,runId=0,frame=0,micActive=false,micBuffer=null,previousMidi=null,feedbackStop=null;
   const $=id=>host.querySelector('#'+id);
   function showLineWindow(lineIndex){
     host.querySelectorAll('[data-score-line]').forEach(row=>{
@@ -88,6 +89,7 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
   }
   function stop(message=''){
     runId++;running=false;cancelAnimationFrame(frame);frame=0;
+    feedbackStop?.();feedbackStop=null;sound.finishRecording();
     if(micActive){sound.releaseMic();micActive=false;micBuffer=null;}
     sound.stopNotes();
     host.querySelectorAll('[data-score-line]').forEach(row=>{row.hidden=false;row.classList.remove('current');});
@@ -104,7 +106,7 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
   function render(){
     if(running)stop();
     const settings=getSettings(),raga=RAGAS[settings.raga],pattern=saraliPattern(settings.raga,selected);
-    host.innerHTML=`<div class="session-heading"><p class="eyebrow">LEARNING PATH · 01</p><h1>Sarali Varasai.</h1></div>
+    host.innerHTML=`<div class="session-heading"><p class="eyebrow">LEARNING PATH · 02</p><h1>Sarali Varasai.</h1></div>
       <div class="sarali-panel"><div class="sarali-top">${selectionFields('sarali',settings)}</div>
       <p class="sarali-scale">${raga.notes.map(note=>note.variant).join(' &nbsp; ')}</p>
       <p class="sarali-instruction">Listen and Sing plays each line first. Sing gives a four-beat count-in at the start, then beat clicks at the set tempo without swara playback.</p>
@@ -218,6 +220,7 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
               $('sarali-status').textContent=`Sing line ${lineIndex+1} after ${remaining} ${remaining===1?'beat':'beats'}.`;
             }})
             :sound.ctx.currentTime+.1;
+          if(justSing&&lineIndex===0)sound.startRecording();
           const samples=await runPhase({lineIndex,beats,phase:'sing',attempt,maxAttempts,beat,base:settings.base,lineCount:lines.length,token,startAt:singStart});
           host.querySelector('.line-live-readout').hidden=true;
           if(micActive){
@@ -238,11 +241,13 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
         }
         results.push({attempts});
       }
+      const recording=justSing?await sound.finishRecording():null;
       stop('Pattern complete. Choose another pattern above or replay this one.');
       $('sarali-progress-fill').style.width='100%';showLineWindow(lines.length-1);
       const needsPractice=justSing&&results.some(line=>line.attempts[0]?.score<60);
-      $('sarali-results').innerHTML=patternSummaryMarkup(results,raga.notes,tolerance,{singlePass:justSing})+(needsPractice?'<button id="sarali-guided-retry" class="primary-button" type="button">Listen and Sing</button>':'');
+      $('sarali-results').innerHTML=patternSummaryMarkup(results,raga.notes,tolerance,{singlePass:justSing,playbackMarkup:justSing?playbackButtons('Play what you sang',!!recording):''})+(needsPractice?'<button id="sarali-guided-retry" class="primary-button" type="button">Listen and Sing</button>':'');
       $('sarali-results').hidden=false;
+      if(justSing)feedbackStop=attachFeedbackPlayback($('sarali-results'),{sound,playRequested:()=>{const start=sound.ctx.currentTime+.05;let elapsed=0;for(const line of lines){scheduleLine(line,raga,settings.base,beat,start+elapsed);elapsed+=line.length*beat;}return elapsed+.05;},recording});
       if(needsPractice)$('sarali-guided-retry').onclick=()=>start();
       $('sarali-results').scrollIntoView({block:'nearest'});
     }catch(error){if(token!==runId||error.name==='AbortError')return;stop(error.message||'Could not start the pattern.');}

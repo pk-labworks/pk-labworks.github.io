@@ -1,10 +1,11 @@
 import {RAGA_LIST,RAGAS,DEFAULT_RAGA,practiceSwaras,swaraHz as swaraHzFor,centsBetween,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261127-6';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 import {createTools} from './tools.js?v=20261125-7';
-import {createPracticeSession} from './session.js?v=20261127-11';
-import {createSaraliVarasai} from './sarali.js?v=20261127-10';
-import {createAlankaras} from './alankara.js?v=20261127-10';
+import {createPracticeSession} from './session.js?v=20261127-12';
+import {createSaraliVarasai} from './sarali.js?v=20261127-12';
+import {createAlankaras} from './alankara.js?v=20261127-12';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
+import {playbackButtons,attachFeedbackPlayback} from './feedback-playback.js?v=20261127-12';
 const $=id=>document.getElementById(id);
 const sound=new SoundEngine();
 const defaultRanges=()=>Object.fromEntries([1,2,3].map(step=>[step,{lower:false,upper:false}]));
@@ -15,7 +16,7 @@ try{const stored=JSON.parse(localStorage.getItem('swara-studio-v1')||'{}');const
 let RAGA_NOTES=RAGAS[settings.raga].notes,SWARAS=practiceSwaras(RAGAS[settings.raga]);
 const swaraHz=(base,index)=>swaraHzFor(base,index,SWARAS);
 const scorePitch=(samples,targets,secondsPerNote,base,tolerance)=>scorePitchFor(samples,targets,secondsPerNote,base,tolerance,SWARAS);
-let step=1,mode='sing',reference=[0],targets=[0],responseTargets=[0],answers=[],lastSequence='',sequenceCursor=0,phase='idle',attempt=1,exercise=1,controller=null,samples=[],live=null,view='practice',drone=false,animation=0,recordStart=0,lastSample=0,lastLiveVoiceAt=0,totalSeconds=3,pitchFillVoicedSeconds=0,pitchFillNote=-1,previewing=false,previewReturnPhase='idle',comparisonController=null,comparisonButton=null,tools=null,session=null,sarali=null,alankara=null,previousLiveMidi=null,micBuffer=null;
+let step=1,mode='sing',reference=[0],targets=[0],responseTargets=[0],answers=[],lastSequence='',sequenceCursor=0,phase='idle',attempt=1,exercise=1,controller=null,samples=[],view='practice',drone=false,animation=0,recordStart=0,lastSample=0,totalSeconds=3,pitchFillVoicedSeconds=0,pitchFillNote=-1,previewing=false,previewReturnPhase='idle',feedbackStop=null,tools=null,session=null,sarali=null,alankara=null,micBuffer=null;
 const titles={1:['THE FOUNDATIONS','One swara at a time.','Listen closely. Sing freely. Let your ear lead the way.'],2:['A STEP FORWARD','One note leads to another.','Hold two sounds in your mind, then find each swara.'],3:['MUSICAL MEMORY','Let three notes become one.','Listen for the shape of a phrase, then respond in order.']};
 const isIdentification=()=>mode==='name';
 const isMemory=()=>mode==='memory';
@@ -43,7 +44,7 @@ function setPhase(next,label,time=''){
   $('note-stage').classList.toggle('recording',next==='recording');
   $('begin').innerHTML=busy()
     ?'<span>Stop practice</span><span aria-hidden="true">■</span>'
-    :`<span>${isIdentification()?(next==='result'?'Try again':'Listen'):'Listen and Sing'}</span><span aria-hidden="true">${next==='result'?'↻':'→'}</span>`;
+    :`<span>${isIdentification()?(next==='result'?'Try again':'Listen'):'Listen and Sing'}</span>`;
   const playLabel=next==='reference'?'Stop':'Play';
   $('preview-note').querySelector('span').textContent=playLabel;
   $('preview-note').setAttribute('aria-label',next==='reference'?'Stop playing the swaras':`Play the ${targets.length===1?'swara':'swaras'}`);
@@ -64,7 +65,7 @@ function updateConfig(){
 function setSelection({base,raga}){
   if(busy()||!SHRUTHIS.includes(base)||!RAGAS[raga]?.notes)return;
   settings.base=base;settings.raga=raga;RAGA_NOTES=RAGAS[raga].notes;SWARAS=practiceSwaras(RAGAS[raga]);
-  samples=[];live=null;attempt=1;sequenceCursor=0;
+  samples=[];attempt=1;sequenceCursor=0;
   if(drone)sound.toggleDrone(base,true).catch(()=>{drone=false;updateDroneButton();toast('Shruthi drone could not restart. Try again.');});
   updateConfig();renderExercise();save();
   if(view==='library')renderLibrary();
@@ -97,7 +98,6 @@ function chooseExercise(){
 }
 function renderExercise(newSequence=true){
   stopComparison();
-  previousLiveMidi=null;live=null;
   if(newSequence)chooseExercise();responseTargets=mode==='sing'?[0,...targets]:[...targets];totalSeconds=Number(settings.response)*responseTargets.length;const [eyebrow,title,description]=titles[step];$('step-eyebrow').textContent=`STEP 0${step+3} / ${eyebrow}`;$('page-title').textContent=title;$('page-title').classList.toggle('long-title',step>1);$('page-description').textContent=isIdentification()?`You will hear your base Sa, then ${senseCount()}. Name only ${step===1?'the swara':'those swaras in order'} after Sa.`:isMemory()?{1:'Hear Sa, then sing the shown swara.',2:'Hear Sa, then sing the two shown swaras in order.',3:'Hear Sa, then sing the three shown swaras in order.'}[step]:description;
   $('sequential-option').hidden=step!==1;$('practice-sequential').checked=settings.sequential;
   $('include-lower').checked=settings.ranges[step].lower;$('include-upper').checked=settings.ranges[step].upper;
@@ -115,7 +115,7 @@ function renderExercise(newSequence=true){
   $('sequence').hidden=responseTargets.length===1&&!concealed;
   $('sequence').innerHTML=responseTargets.map(i=>`<span>${concealed?'?':SWARAS[i].name}</span>`).join('');
   $('duration-caption').textContent=(step===1&&settings.sequential?'Low to high · ':'')+(concealed?`Base Sa + ${count} ${count===1?'swara':'swaras'} · ${referenceDuration()}s each`:isMemory()?`Sa plays ${referenceDuration()}s · ${settings.response}s${count>1?' / note':''} singing`:`Sa + ${count} ${count===1?'swara':'swaras'} · ${referenceDuration()}s each to hear · ${settings.response}s each to sing`);
-  $('exercise-panel').classList.remove('show-result','memory-result');$('answer-options').hidden=true;$('feedback').hidden=true;answers=[];setPhase('idle',idlePrompt());resetReadings();resetPitchFill();
+  $('exercise-panel').classList.remove('show-result','memory-result');$('answer-options').hidden=true;$('feedback').hidden=true;answers=[];setPhase('idle',idlePrompt());resetPitchFill();
 }
 function resetPitchFill(){
   pitchFillVoicedSeconds=0;pitchFillNote=-1;
@@ -145,33 +145,16 @@ function advancePitchFill(sampleMs,frequency,index){
   $('recall-fill').setAttribute('aria-valuetext',`${percent}% filled · ${label}`);
   $('pitch-feedback-state').textContent=label;
 }
-function resetReadings(){
-  $('detected-note').textContent='—';
-  $('detected-full').textContent='Your note will appear here';
-  $('detected-western').textContent='—';
-  $('detected-hz').textContent='— Hz';
-  $('detected-cents').textContent='Sing to see your tuning';
-}
 function wait(ms,signal){return new Promise((resolve,reject)=>{if(signal.aborted)return reject(new DOMException('Cancelled','AbortError'));const cancel=()=>{clearTimeout(timer);reject(new DOMException('Cancelled','AbortError'));};const timer=setTimeout(()=>{signal.removeEventListener('abort',cancel);resolve();},ms);signal.addEventListener('abort',cancel,{once:true});});}
 function throwIfAborted(signal){if(signal.aborted)throw new DOMException('Cancelled','AbortError');}
 function stopComparison(){
-  if(!comparisonController)return;
-  comparisonController.abort();comparisonController=null;sound.stopNotes();
-  if(comparisonButton){comparisonButton.textContent=comparisonButton.dataset.label;comparisonButton=null;}
+  feedbackStop?.();feedbackStop=null;
 }
-async function playComparison(index,button){
-  if(comparisonButton===button){stopComparison();return;}
-  stopComparison();
-  const current=new AbortController(),signal=current.signal,duration=referenceDuration();
-  comparisonController=current;comparisonButton=button;button.dataset.label=button.textContent;button.textContent='Stop comparison';
-  try{
-    await sound.unlock();throwIfAborted(signal);
-    sound.reference(settings.base,duration);
-    await wait(duration*1000,signal);await wait(250,signal);
-    sound.reference(settings.base+SWARAS[index].offset,duration,SWARAS[index].variant);
-    await wait(duration*1000,signal);
-  }catch(error){if(error.name!=='AbortError')toast('The comparison could not play. Try again.');}
-  finally{if(comparisonController===current)stopComparison();}
+function scheduleFeedbackNotes(indices){
+  const duration=referenceDuration(),gap=.25,start=sound.ctx.currentTime+.05;
+  sound.scheduleReference(settings.base,start,duration);
+  indices.forEach((index,n)=>sound.scheduleReference(settings.base+SWARAS[index].offset,start+(n+1)*(duration+gap),duration));
+  return (indices.length+1)*duration+indices.length*gap+.05;
 }
 async function countDown(seconds,label,signal){const start=performance.now();while(performance.now()-start<seconds*1000){const remaining=Math.ceil(seconds-(performance.now()-start)/1000);$('phase-label').textContent=label;$('phase-time').textContent=`${remaining}s`;await wait(Math.min(100,seconds*1000-(performance.now()-start)),signal);}}
 async function playReferences(indices,signal,conceal=false){
@@ -227,7 +210,7 @@ async function begin(){
   stopComparison();
   if(previewing){sound.stopNotes();controller?.abort();previewing=false;setPhase('idle',idlePrompt());}
   else if(busy()){cancelExercise();return;}
-  controller=new AbortController();const signal=controller.signal;samples=[];live=null;previousLiveMidi=null;lastSample=0;lastLiveVoiceAt=0;previewing=false;answers=[];updateAnswerEntry();$('exercise-panel').classList.remove('show-result','memory-result');$('feedback').hidden=true;$('answer-options').hidden=true;resetReadings();resetPitchFill();
+  controller=new AbortController();const signal=controller.signal;samples=[];lastSample=0;previewing=false;answers=[];updateAnswerEntry();$('exercise-panel').classList.remove('show-result','memory-result');$('feedback').hidden=true;$('answer-options').hidden=true;resetPitchFill();
   try{
     setPhase('preparing',isIdentification()?'Preparing the reference.':'Waiting for microphone access…');await sound.unlock();throwIfAborted(signal);
     if(!isIdentification()){await sound.microphone(signal);if(signal.aborted)return;sound.analyser.fftSize=4096;sound.analyser.smoothingTimeConstant=0;micBuffer=new Float32Array(sound.analyser.fftSize);}
@@ -252,36 +235,24 @@ async function begin(){
 function captureFrame(){
   if(phase!=='recording'||!sound.analyser)return;
   const now=performance.now(),t=(now-recordStart)/1000;const current=Math.min(responseTargets.length-1,Math.floor(t/settings.response));
-  if(current!==pitchFillNote){resetPitchFill();pitchFillNote=current;if(!isMemory()){live=null;updateLive();}}
+  if(current!==pitchFillNote){resetPitchFill();pitchFillNote=current;}
   if(now-lastSample>=50){
     const sampleMs=lastSample?now-lastSample:Math.min(now-recordStart,50);
     lastSample=now;sound.analyser.getFloatTimeDomainData(micBuffer);
     const frequency=detectLivePitch(micBuffer,sound.ctx.sampleRate);
-    if(frequency){live={hz:frequency};lastLiveVoiceAt=now;advancePitchFill(sampleMs,frequency,responseTargets[current]);if(!isMemory())updateLive();}
-    else if(now-lastLiveVoiceAt>700){live=null;if(!isMemory())updateLive();}
+    if(frequency)advancePitchFill(sampleMs,frequency,responseTargets[current]);
     samples.push({t,hz:frequency||null,index:responseTargets[current]});
   }
   $('target-name').textContent=SWARAS[responseTargets[current]].name;$('target-western').textContent=isMemory()?'':noteReadout(responseTargets[current]);
   $('phase-label').textContent=`Sing ${SWARAS[responseTargets[current]].name}${responseTargets.length>1?` · note ${current+1} of ${responseTargets.length}`:''}.`;$('phase-time').textContent=`${Math.max(0,Math.ceil(totalSeconds-t))}s`;
   [...$('sequence').children].forEach((el,i)=>el.classList.toggle('current',current===i));animation=requestAnimationFrame(captureFrame);
 }
-function updateLive(){
-  if(!live){resetReadings();previousLiveMidi=null;return;}
-  const reading=livePitchReading(live.hz,settings.base,previousLiveMidi);
-  previousLiveMidi=reading.midi;
-  $('detected-note').textContent=reading.swara;
-  $('detected-full').textContent=reading.fullName;
-  $('detected-western').textContent=reading.western;
-  $('detected-hz').textContent=`${live.hz.toFixed(1)} Hz`;
-  const targetIndex=responseTargets[Math.max(0,pitchFillNote)],cents=centsBetween(live.hz,swaraHz(settings.base,targetIndex));
-  $('detected-cents').textContent=Math.abs(cents)<=tolerance()?`In tune with ${swaraLabel(targetIndex)}`:`${Math.abs(Math.round(cents))} cents ${cents>0?'sharp':'flat'} of ${swaraLabel(targetIndex)}`;
-}
 function cancelExercise(){
   controller?.abort();stopComparison();cancelAnimationFrame(animation);sound.stopNotes();sound.finishRecording();sound.releaseMic();previewing=false;
   $('note-kicker').textContent=isIdentification()?'HEAR SA FIRST':isMemory()?'FROM MEMORY':'YOUR REFERENCE';
   $('target-name').textContent=isIdentification()?'?':SWARAS[targets[0]].name;
   $('target-western').textContent=isIdentification()?senseOrder():isMemory()?'':noteReadout(targets[0]);
-  setPhase('idle',idlePrompt());$('answer-options').hidden=true;resetReadings();resetPitchFill();
+  setPhase('idle',idlePrompt());$('answer-options').hidden=true;resetPitchFill();
 }
 function answer(index){
   if(phase!=='answer'||answers.length>=targets.length)return;
@@ -325,11 +296,11 @@ function finishResult(result,recording=null){
     const missed=!detail.pass&&detail.detected&&Number.isFinite(detail.cents);
     const reading=missed?livePitchReading(swaraHz(settings.base,detail.index)*2**(detail.cents/1200),settings.base):null;
     const message=reading?`You sang ${reading.swara} (${reading.western})${reading.tuning==='In tune'?'':` · ${reading.tuning}`}. The note was ${label}.`:label;
-    return `<div><p>${targets.length>1?`Note ${position+1}: `:''}${message}</p><button type="button" class="secondary-button" data-compare="${position}">Play Sa, then ${label}</button></div>`;
+    return `<div><p>${targets.length>1?`Note ${position+1}: `:''}${message}</p></div>`;
   }).join('')}</div>`:'';
-  $('exercise-panel').classList.add('show-result');$('exercise-panel').classList.toggle('memory-result',isMemory());$('feedback').hidden=false;$('feedback').innerHTML=`<h3>${heading}</h3><p>${body}</p>${result.identification?'':`<div class="feedback-stat">${result.accuracy}% of detected pitch frames within ±${tolerance()} cents${!result.voiced?' · No reliable voice detected':''}</div>`}<div class="result-notes">${result.details.map(d=>`<span>${SWARAS[d.index].name} · ${d.detected?d.accuracy+'%':'not heard'}${d.stability!==null&&d.stability!==undefined?' · '+Math.round(d.stability)+'¢ variation':''}</span>`).join('')}</div>${recallMarkup}<div class="feedback-actions"><button class="primary-button" id="next-exercise">Next exercise <span>→</span></button><button class="secondary-button" id="retry-exercise">${isMemory()?'Try again':'Listen & retry'}</button>${recording?'<audio controls aria-label="Listen to your recording"></audio>':''}</div>`;
-  if(recording)$('feedback').querySelector('audio').src=recording;
-  $('feedback').querySelectorAll('[data-compare]').forEach(button=>button.onclick=()=>playComparison(result.details[Number(button.dataset.compare)].index,button));
+  const playback=isIdentification()?playbackButtons('Play your choices'):isMemory()?playbackButtons('Play what you sang',!!recording):'';
+  $('exercise-panel').classList.add('show-result');$('exercise-panel').classList.toggle('memory-result',isMemory());$('feedback').hidden=false;$('feedback').innerHTML=`<h3>${heading}</h3><p>${body}</p>${result.identification?'':`<div class="feedback-stat">${result.accuracy}% of detected pitch frames within ±${tolerance()} cents${!result.voiced?' · No reliable voice detected':''}</div>`}${playback}<div class="result-notes">${result.details.map(d=>`<span>${SWARAS[d.index].name} · ${d.detected?d.accuracy+'%':'not heard'}${d.stability!==null&&d.stability!==undefined?' · '+Math.round(d.stability)+'¢ variation':''}</span>`).join('')}</div>${recallMarkup}<div class="feedback-actions"><button class="primary-button" id="next-exercise">Next exercise</button><button class="secondary-button" id="retry-exercise">${isMemory()?'Try again':'Listen & retry'}</button></div>`;
+  if(playback)feedbackStop=attachFeedbackPlayback($('feedback'),{sound,playRequested:()=>scheduleFeedbackNotes(targets),playAnswer:isIdentification()?()=>scheduleFeedbackNotes(result.answers):null,recording,onError:()=>toast('The comparison could not play. Try again.')});
   $('next-exercise').onclick=nextExercise;$('retry-exercise').onclick=()=>{attempt++;if(mode==='sing'){renderExercise(false);begin();}else begin();};
 }
 function nextExercise(){
@@ -363,12 +334,12 @@ function renderProgress(){
   const ragaHistory=history.filter(entry=>(entry.raga||DEFAULT_RAGA)===settings.raga&&entry.notes.every(note=>note.index<SWARAS.length));
   const count=ragaHistory.length,avg=count?Math.round(ragaHistory.reduce((s,h)=>s+h.accuracy,0)/count):0;const dates=new Set(ragaHistory.map(h=>new Date(h.time).toDateString()));
   let content=`<p class="eyebrow">YOUR PRACTICE JOURNAL</p><h1 class="progress-intro">Small steps, lasting progress.</h1><p class="page-description">Your ${RAGAS[settings.raga].name} practice on this device.</p>`;
-  if(!count){content+='<div class="empty-progress"><div><h2>Your first note starts the story.</h2><p>Complete a practice exercise to see your pitch accuracy and the swaras to revisit.</p></div><button class="primary-button" data-back-practice>Begin practice <span>→</span></button></div>';}
+  if(!count){content+='<div class="empty-progress"><div><h2>Your first note starts the story.</h2><p>Complete a practice exercise to see your pitch accuracy and the swaras to revisit.</p></div><button class="primary-button" data-back-practice>Begin practice</button></div>';}
   else{
     content+=`<div class="progress-stats"><div><span class="label">ATTEMPTS</span><strong>${count}</strong></div><div><span class="label">AVERAGE ACCURACY</span><strong>${avg}%</strong></div><div><span class="label">DAYS OF PRACTICE</span><strong>${dates.size}</strong></div></div>`;
     const stats=SWARAS.map((s,i)=>{const notes=ragaHistory.flatMap(h=>h.notes).filter(n=>n.index===i);return {...s,index:i,count:notes.length,accuracy:notes.length?Math.round(notes.reduce((a,n)=>a+n.accuracy,0)/notes.length):null,stability:notes.filter(n=>Number.isFinite(n.stability)).length?Math.round(notes.filter(n=>Number.isFinite(n.stability)).reduce((a,n)=>a+n.stability,0)/notes.filter(n=>Number.isFinite(n.stability)).length):null};});
     const recent=ragaHistory.slice(-5);const ready=recent.length===5&&recent.every(h=>h.pass);const recommendedStep=ready?Math.min(recent.at(-1).step+1,3):1;
-    content+=`<div class="recommendation"><p><strong>${ready?'Ready for a new kind of listening.':`Keep listening with a fresh sequence.`}</strong>${ready?'Your last five attempts met the accuracy target. Explore the next step on your learning path.':`The app will choose the next swaras for you. Replay the sequence as often as you need.`}</p><button class="primary-button" id="recommended-practice" data-rec-step="${recommendedStep}">Continue practice <span>→</span></button></div><h2 class="section-title">A closer look at each swara</h2><table class="data-table"><thead><tr><th>SWARA</th><th>ATTEMPTS</th><th>ACCURACY</th><th>PITCH VARIATION</th></tr></thead><tbody>${stats.map(s=>`<tr><td>${s.name} <small>${s.variant}</small></td><td>${s.count||'—'}</td><td>${s.accuracy===null?'—':s.accuracy+'%'}</td><td>${s.stability===null?'—':s.stability+' cents'}</td></tr>`).join('')}</tbody></table><h2 class="section-title">Recent practice</h2><table class="data-table"><thead><tr><th>WHEN</th><th>EXERCISE</th><th>SHRUTHI</th><th>ACCURACY</th></tr></thead><tbody>${[...ragaHistory].reverse().slice(0,15).map(h=>`<tr><td>${new Date(h.time).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</td><td>${({sing:'Singing',name:'Naming',memory:'From memory',repeat:'Singing',next:'Singing',identify:'Naming'})[h.mode]||'Practice'} · Step ${h.step} · ${h.notes.map(n=>SWARAS[n.index].name).join(' ')}</td><td>${noteName(h.base)}</td><td>${h.accuracy}%</td></tr>`).join('')}</tbody></table><p class="field-note">Pitch accuracy is the proportion of detected voice frames within the selected tolerance. Variation is the median pitch spread. This journal stays on this browser and device.</p>`;
+    content+=`<div class="recommendation"><p><strong>${ready?'Ready for a new kind of listening.':`Keep listening with a fresh sequence.`}</strong>${ready?'Your last five attempts met the accuracy target. Explore the next step on your learning path.':`The app will choose the next swaras for you. Replay the sequence as often as you need.`}</p><button class="primary-button" id="recommended-practice" data-rec-step="${recommendedStep}">Continue practice</button></div><h2 class="section-title">A closer look at each swara</h2><table class="data-table"><thead><tr><th>SWARA</th><th>ATTEMPTS</th><th>ACCURACY</th><th>PITCH VARIATION</th></tr></thead><tbody>${stats.map(s=>`<tr><td>${s.name} <small>${s.variant}</small></td><td>${s.count||'—'}</td><td>${s.accuracy===null?'—':s.accuracy+'%'}</td><td>${s.stability===null?'—':s.stability+' cents'}</td></tr>`).join('')}</tbody></table><h2 class="section-title">Recent practice</h2><table class="data-table"><thead><tr><th>WHEN</th><th>EXERCISE</th><th>SHRUTHI</th><th>ACCURACY</th></tr></thead><tbody>${[...ragaHistory].reverse().slice(0,15).map(h=>`<tr><td>${new Date(h.time).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</td><td>${({sing:'Singing',name:'Naming',memory:'From memory',repeat:'Singing',next:'Singing',identify:'Naming'})[h.mode]||'Practice'} · Step ${h.step} · ${h.notes.map(n=>SWARAS[n.index].name).join(' ')}</td><td>${noteName(h.base)}</td><td>${h.accuracy}%</td></tr>`).join('')}</tbody></table><p class="field-note">Pitch accuracy is the proportion of detected voice frames within the selected tolerance. Variation is the median pitch spread. This journal stays on this browser and device.</p>`;
   }$('progress-view').innerHTML=content;
   $('progress-view').querySelector('[data-back-practice]')?.addEventListener('click',()=>showView('practice'));
   $('recommended-practice')?.addEventListener('click',e=>{const b=e.currentTarget;step=Number(b.dataset.recStep);mode='sing';syncPath();renderExercise();showView('practice');begin();});
@@ -378,7 +349,7 @@ function renderLibrary(){
     const selected=raga.id===settings.raga;
     const ascent=raga.notes.map(note=>note.variant).join(' ');
     const descent=[...raga.notes].reverse().map(note=>note.variant).join(' ');
-    return `<article class="raga-card${selected?' selected':''}"><div class="raga-card-heading"><span class="label">${raga.type}</span>${selected?'<span class="raga-current">Selected</span>':''}</div><h2>${raga.name}</h2><p>${raga.description}</p><div class="raga-scale"><span>Ārohaṇa</span><strong>${ascent}</strong><span>Avarohaṇa</span><strong>${descent}</strong></div><div class="raga-actions"><button class="secondary-button" data-practice-raga="${raga.id}" aria-label="Practice ${raga.name}">${selected?'Continue practice':'Practice this raga'} <span aria-hidden="true">→</span></button><a href="${raga.source}" target="_blank" rel="noopener noreferrer">Scale source ↗</a></div></article>`;
+    return `<article class="raga-card${selected?' selected':''}"><div class="raga-card-heading"><span class="label">${raga.type}</span>${selected?'<span class="raga-current">Selected</span>':''}</div><h2>${raga.name}</h2><p>${raga.description}</p><div class="raga-scale"><span>Ārohaṇa</span><strong>${ascent}</strong><span>Avarohaṇa</span><strong>${descent}</strong></div><div class="raga-actions"><button class="secondary-button" data-practice-raga="${raga.id}" aria-label="Practice ${raga.name}">${selected?'Continue practice':'Practice this raga'}</button><a href="${raga.source}" target="_blank" rel="noopener noreferrer">Scale source ↗</a></div></article>`;
   }).join('');
   $('library-view').innerHTML=`<p class="eyebrow">THE SWARA LIBRARY</p><h1 class="progress-intro">Choose a raga.</h1><p class="page-description">Explore the note sets, then practice listening, naming, or singing in the selected raga.</p><p class="library-note">Seven swara names share twelve pitch positions in an octave. A raga chooses specific variants; Mohanam uses five swaras.</p><div class="raga-grid">${cards}</div><h2 class="section-title">Notes in ${RAGAS[settings.raga].name}</h2><table class="data-table"><thead><tr><th>SWARA</th><th>VARIANT</th><th>WESTERN NOTE</th><th>FREQUENCY</th><th>LISTEN</th></tr></thead><tbody>${RAGA_NOTES.map((s,i)=>`<tr><td>${s.name}</td><td>${s.variant}</td><td>${noteName(settings.base+s.offset)}</td><td>${swaraHz(settings.base,i).toFixed(2)} Hz</td><td><button class="secondary-button" data-library-note="${i}" aria-label="Listen to ${s.name}">▷</button></td></tr>`).join('')}</tbody></table><p class="field-note">Pitches are relative to your selected Sa (${noteName(settings.base)}) and use equal temperament. These exercises use plain notes; characteristic phrases, gamakas, and intonation need guided listening beyond this pitch chart.</p>`;
   $('library-view').querySelectorAll('[data-practice-raga]').forEach(button=>button.onclick=()=>{selectRaga(button.dataset.practiceRaga);showView('practice');});
