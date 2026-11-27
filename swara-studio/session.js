@@ -67,12 +67,12 @@ export function createPracticeSession({sound,getSettings,onSelection}){
   let savedExercises=[];
   try{
     const stored=JSON.parse(localStorage.getItem(SAVED_KEY)||'[]');
-    if(Array.isArray(stored))savedExercises=stored.filter(item=>item&&typeof item.id==='string'&&typeof item.name==='string'&&item.name.length<=60&&SHRUTHIS.includes(item.base)&&RAGAS[item.raga]&&Number.isInteger(item.tempo)&&item.tempo>=30&&item.tempo<=180&&typeof item.notes==='string'&&item.notes.length<=8192).slice(0,MAX_SAVED);
+    if(Array.isArray(stored))savedExercises=stored.filter(item=>item&&typeof item.id==='string'&&typeof item.name==='string'&&item.name.length<=60&&SHRUTHIS.includes(item.base)&&RAGAS[item.raga]&&Number.isInteger(item.tempo)&&item.tempo>=30&&item.tempo<=300&&typeof item.notes==='string'&&item.notes.length<=8192).slice(0,MAX_SAVED);
   }catch{}
   let state=defaults();
   try{
     const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
-    if(saved&&SHRUTHIS.includes(saved.base)&&RAGAS[saved.raga]&&Number.isInteger(saved.tempo)&&saved.tempo>=30&&saved.tempo<=180&&typeof saved.notes==='string'&&saved.notes.length<=8192){state={...defaults(),...saved,base:getSettings().base,raga:getSettings().raga};delete state.sound;}
+    if(saved&&SHRUTHIS.includes(saved.base)&&RAGAS[saved.raga]&&Number.isInteger(saved.tempo)&&saved.tempo>=30&&saved.tempo<=300&&typeof saved.notes==='string'&&saved.notes.length<=8192){state={...defaults(),...saved,base:getSettings().base,raga:getSettings().raga};delete state.sound;}
   }catch{}
   if(!savedExercises.some(exercise=>exercise.id===state.savedId))state.savedId=null;
   let running=false,runId=0,frame=0,micController=null,micActive=false,micBuffer=null,lastMicFrame=0,previousMidi=null,lastVoiceAt=0;
@@ -86,7 +86,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     host.innerHTML=`<div class="session-heading"><p class="eyebrow">YOUR PRACTICE SESSION</p><h1>Build your own phrases.</h1><p id="session-source" class="session-source" hidden></p></div>
       <div class="session-builder"><div class="saved-exercises"><div class="saved-exercises-heading"><strong>Saved exercises</strong><span id="session-saved-count">0 / 25</span></div><div class="saved-exercises-controls"><select id="session-saved" aria-label="Choose a saved exercise"><option value="">Choose a saved exercise…</option></select><button id="session-new" class="secondary-button" type="button">New</button><button id="session-delete" class="secondary-button" type="button" disabled>Delete</button></div><p>Choose an exercise to load its notes, raga, shruthi, and tempo.</p></div><div class="session-fields">
         ${selectionFields('session',state)}
-        <label>Tempo (BPM)<input id="session-tempo" type="number" min="30" max="180" step="1" inputmode="numeric"></label>
+        <label>Tempo (BPM)<input id="session-tempo" type="number" min="30" max="300" step="1" inputmode="numeric"></label>
       </div><label class="session-notes-label" for="session-notes">Swaras</label>
       <textarea id="session-notes" rows="3" spellcheck="false" placeholder="P_ D2_ S R2 G3 P&#10;S' R2' G3' P' G3' R2'"></textarea>
       <div id="session-swatches" class="session-swatches" aria-label="Add a swara"></div>
@@ -161,7 +161,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     $('session-swatches').innerHTML=['lower','middle','upper'].map(register=>`<div class="session-swatch-group"><span>${register==='middle'?'Middle octave':register==='lower'?'Lower Pa–Sa':'Upper Sa–Pa'}</span>${notes.filter(note=>note.register===register).map(note=>`<button type="button" data-code="${code(note)}" aria-label="Add ${swaraLabel(note)}">${code(note)}</button>`).join('')}</div>`).join('');
   }
   function readLines(){
-    if(!Number.isInteger(state.tempo)||state.tempo<30||state.tempo>180)throw new Error('Choose a tempo from 30 to 180 BPM.');
+    if(!Number.isInteger(state.tempo)||state.tempo<30||state.tempo>300)throw new Error('Choose a tempo from 30 to 300 BPM.');
     const rows=state.notes.split(/\r?\n/).map(row=>row.trim()).filter(Boolean);
     if(!rows.length)throw new Error('Enter at least one line of swaras.');
     const lines=rows.map(row=>({indices:parseSwaraSequence(row,RAGAS[state.raga]),tokens:sequenceTokens(row)}));

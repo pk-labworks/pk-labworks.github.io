@@ -160,7 +160,7 @@ export function createAlankaras({sound,getSettings,onSelection}){
       <div class="sarali-panel alankara-panel"><div class="sarali-top">${selectionFields('alankara',settings)}</div>
       <p class="sarali-scale">${raga.notes.map(note=>note.variant).join(' &nbsp; ')}</p>
       <p class="sarali-instruction">Listen and Sing plays each line first. Sing gives a four-beat count-in at the start, then beat clicks at the set tempo without swara playback.</p>
-      <label class="sarali-tempo-label">Tempo (BPM) <input id="alankara-tempo" type="number" min="30" max="180" step="1" value="${tempo}"></label>
+      <label class="sarali-tempo-label">Tempo (BPM) <input id="alankara-tempo" type="number" min="30" max="300" step="1" value="${tempo}"></label>
       <div class="alankara-picker" role="group" aria-label="Alankara patterns">${ALANKARAS.map((item,i)=>`<button type="button" data-alankara="${i}" aria-pressed="${i===selected}"><span>${String(i+1).padStart(2,'0')}</span><strong>${item.short}</strong></button>`).join('')}</div>
       <div class="alankara-meta"><strong>${pattern.name}</strong><span>${pattern.beats} beats · ${pattern.groups.join(' + ')}</span></div>
       <div class="sarali-actions"><button id="alankara-practice" class="primary-button" type="button">Listen and Sing</button><button id="alankara-just-sing" class="secondary-button" type="button">Sing</button><button id="alankara-next" class="secondary-button" type="button" hidden>Next alankara →</button></div>
@@ -173,8 +173,8 @@ export function createAlankaras({sound,getSettings,onSelection}){
       <p class="sarali-source">Adapted from “Alankaarams” (lesson 6) in <em>karnATik Beginners’ Lessons Notation</em> (Rani, 2002). Patterns follow the selected raga’s swaras through Upper Sa; wide patterns repeat an endpoint when needed to complete the taalam.</p></div>`;
     for(const id of ['alankara-base','alankara-raga'])$(id).onchange=()=>onSelection({base:Number($('alankara-base').value),raga:$('alankara-raga').value});
     host.querySelectorAll('[data-alankara]').forEach(button=>button.onclick=()=>{selected=Number(button.dataset.alankara);render();});
-    $('alankara-tempo').oninput=()=>{const value=Number($('alankara-tempo').value);if(Number.isInteger(value)&&value>=30&&value<=180)tempo=value;};
-    $('alankara-tempo').onchange=()=>{const value=Number($('alankara-tempo').value);tempo=Number.isInteger(value)?Math.max(30,Math.min(180,value)):50;$('alankara-tempo').value=tempo;};
+    $('alankara-tempo').oninput=()=>{const value=Number($('alankara-tempo').value);if(Number.isInteger(value)&&value>=30&&value<=300)tempo=value;};
+    $('alankara-tempo').onchange=()=>{const value=Number($('alankara-tempo').value);tempo=Number.isInteger(value)?Math.max(30,Math.min(300,value)):50;$('alankara-tempo').value=tempo;};
     $('alankara-practice').onclick=()=>running?stop('Stopped. Choose an alankara or play again.'):start();
     $('alankara-just-sing').onclick=()=>running?stop('Stopped. Choose an alankara or play again.'):start({justSing:true});
     $('alankara-next').onclick=()=>{selected=(selected+1)%ALANKARAS.length;render();};

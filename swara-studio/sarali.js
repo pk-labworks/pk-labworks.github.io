@@ -108,7 +108,7 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
       <div class="sarali-panel"><div class="sarali-top">${selectionFields('sarali',settings)}</div>
       <p class="sarali-scale">${raga.notes.map(note=>note.variant).join(' &nbsp; ')}</p>
       <p class="sarali-instruction">Listen and Sing plays each line first. Sing gives a four-beat count-in at the start, then beat clicks at the set tempo without swara playback.</p>
-      <label class="sarali-tempo-label">Tempo (BPM) <input id="sarali-tempo" type="number" min="30" max="180" step="1" value="${tempo}"></label>
+      <label class="sarali-tempo-label">Tempo (BPM) <input id="sarali-tempo" type="number" min="30" max="300" step="1" value="${tempo}"></label>
       <div class="sarali-picker" role="group" aria-label="Sarali Varasai patterns">${PATTERNS.map((_,i)=>`<button type="button" data-pattern="${i}" aria-pressed="${i===selected}">${String(i+1).padStart(2,'0')}</button>`).join('')}</div>
       <div class="sarali-actions"><button id="sarali-practice" class="primary-button" type="button">Listen and Sing</button><button id="sarali-just-sing" class="secondary-button" type="button">Sing</button></div>
       <p id="sarali-status" class="session-status" role="status">Ready for pattern ${selected+1}.</p>
@@ -120,8 +120,8 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
       <p class="sarali-source">Adapted from “Sarali Varisai” in <em>karnATik Beginners’ Lessons Notation</em> (Rani, 2002). In five-note ragas, skipped swaras extend the final note of each line.</p></div>`;
     for(const id of ['sarali-base','sarali-raga'])host.querySelector(`#${id}`).onchange=()=>onSelection({base:Number(host.querySelector('#sarali-base').value),raga:host.querySelector('#sarali-raga').value});
     host.querySelectorAll('[data-pattern]').forEach(button=>button.onclick=()=>{selected=Number(button.dataset.pattern);render();});
-    $('sarali-tempo').oninput=()=>{const value=Number($('sarali-tempo').value);if(Number.isInteger(value)&&value>=30&&value<=180)tempo=value;};
-    $('sarali-tempo').onchange=()=>{const value=Number($('sarali-tempo').value);tempo=Number.isInteger(value)?Math.max(30,Math.min(180,value)):50;$('sarali-tempo').value=tempo;};
+    $('sarali-tempo').oninput=()=>{const value=Number($('sarali-tempo').value);if(Number.isInteger(value)&&value>=30&&value<=300)tempo=value;};
+    $('sarali-tempo').onchange=()=>{const value=Number($('sarali-tempo').value);tempo=Number.isInteger(value)?Math.max(30,Math.min(300,value)):50;$('sarali-tempo').value=tempo;};
     $('sarali-practice').onclick=()=>running?stop('Stopped. Choose a pattern or play again.'):start();
     $('sarali-just-sing').onclick=()=>running?stop('Stopped. Choose a pattern or play again.'):start({justSing:true});
   }
