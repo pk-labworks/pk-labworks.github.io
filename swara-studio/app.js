@@ -36,6 +36,7 @@ function referenceDuration(){return Number(settings.duration);}
 function setPhase(next,label,time=''){
   phase=next;
   document.querySelector('.practice-layout').classList.toggle('showing-result',next==='result');
+  $('exercise-panel').classList.toggle('show-answer',next==='answer');
   $('phase-label').textContent=label;
   $('phase-time').textContent=time;
   document.querySelector('.phase-strip').hidden=next==='idle'||next==='result';

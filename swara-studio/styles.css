@@ -489,3 +489,4 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 @media(max-width:520px){.feedback-playback .secondary-button{flex:1;min-width:135px}}
 
 .practice-layout{grid-template-columns:minmax(0,1fr);max-width:760px;margin-inline:auto}
+.exercise-panel.show-answer .note-stage{display:none}
