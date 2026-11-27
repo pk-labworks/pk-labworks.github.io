@@ -93,8 +93,8 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       <p class="field-note">Put each line on a new row. One beat per swara or hold (~). Use _ for lower notes (P_) and ' for upper notes (S', R2').</p>
       <div class="session-save-row"><label for="session-name">Exercise name<input id="session-name" type="text" maxlength="60" placeholder="e.g., Mohanam ascent"></label><button id="session-save" class="secondary-button" type="button">Save exercise</button></div>
       <p id="session-error" class="session-error" role="alert" hidden></p>
-      <div class="session-actions"><button id="session-play" class="primary-button" type="button">Listen and Sing <span aria-hidden="true">→</span></button><button id="session-just-sing" class="secondary-button" type="button">Sing</button><button id="session-stop" class="secondary-button" type="button" disabled>Stop</button><label class="session-mic-label"><input id="session-mic" type="checkbox" checked> Show my sung note</label></div>
-      <p id="session-status" class="session-status" role="status">Listen and Sing plays each line first. Sing gives a four-beat count-in at the start, then beat clicks at the set tempo without swara playback.</p>
+      <div class="session-actions"><button id="session-play" class="primary-button" type="button">Learn <span aria-hidden="true">→</span></button><button id="session-just-sing" class="secondary-button" type="button">Recall</button><button id="session-stop" class="secondary-button" type="button" disabled>Stop</button><label class="session-mic-label"><input id="session-mic" type="checkbox" checked> Show my sung note</label></div>
+      <p id="session-status" class="session-status" role="status">Learn plays each line first. Recall gives a four-beat count-in at the start, then beat clicks at the set tempo without swara playback.</p>
       <div id="session-stage" class="session-stage"><div class="session-stage-top"><span class="label">CURRENT SWARA</span><span id="session-count">—</span></div><strong id="session-current">—</strong><div id="session-sequence" class="session-sequence"></div><div id="session-line-feedback" class="pattern-line-feedback" role="status" aria-live="polite" hidden></div><div class="session-progress"><i id="session-progress-fill"></i></div>${liveReadoutMarkup('session')}</div><div id="session-results" class="session-results" hidden></div></div>`;
     $('session-base').value=String(state.base);$('session-raga').value=state.raga;$('session-tempo').value=String(state.tempo);$('session-notes').value=state.notes;$('session-name').value=state.name||'';
     $('session-base').onchange=()=>{state.base=Number($('session-base').value);save();refreshPreview();onSelection?.({base:state.base,raga:state.raga});};
@@ -169,7 +169,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     return lines;
   }
   function refreshPreview(){
-    if(!running){$('session-current').textContent='—';$('session-progress-fill').style.width='0';clearLiveReadout(host,'session');previousMidi=null;$('session-status').textContent='Listen and Sing plays each line first. Sing gives a four-beat count-in at the start, then beat clicks at the set tempo without swara playback.';$('session-line-feedback').hidden=true;$('session-results').hidden=true;}
+    if(!running){$('session-current').textContent='—';$('session-progress-fill').style.width='0';clearLiveReadout(host,'session');previousMidi=null;$('session-status').textContent='Learn plays each line first. Recall gives a four-beat count-in at the start, then beat clicks at the set tempo without swara playback.';$('session-line-feedback').hidden=true;$('session-results').hidden=true;}
     try{
       const lines=readLines(),notes=practiceSwaras(RAGAS[state.raga]);
       $('session-error').hidden=true;
@@ -256,7 +256,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     hostResults.innerHTML=`<h2>Session score: ${score}%</h2><p>${justSing?'One attempt':'Best attempt'} on each line · pitch within ±${tolerance} cents of the target.</p><div class="session-result-lines">${best.map((line,index)=>{
       const weak=[...new Set(line.details.filter(note=>note.score<60).map(note=>swaraLabel(notes[note.index])))];
       return `<div><strong>Line ${index+1}: ${line.score}%</strong><span>${results[index].attempts.length} ${results[index].attempts.length===1?'attempt':'attempts'}${weak.length?` · Practice ${weak.join(', ')}`:' · Well done'}</span></div>`;
-    }).join('')}</div><p class="session-guidance">${weakLines.length?`Practice ${weakLines.length===1?'line':'lines'} ${weakLines.join(', ')} again, focusing on the notes listed above.`:'All lines reached 60%. Keep practicing at a comfortable tempo.'}</p>${justSing&&weakLines.length?'<button id="session-guided-retry" class="primary-button" type="button">Listen and Sing</button>':''}`;
+    }).join('')}</div><p class="session-guidance">${weakLines.length?`Practice ${weakLines.length===1?'line':'lines'} ${weakLines.join(', ')} again, focusing on the notes listed above.`:'All lines reached 60%. Keep practicing at a comfortable tempo.'}</p>${justSing&&weakLines.length?'<button id="session-guided-retry" class="primary-button" type="button">Learn</button>':''}`;
     if(justSing&&weakLines.length)$('session-guided-retry').onclick=()=>start();
     hostResults.scrollIntoView({block:'nearest'});
   }
@@ -274,12 +274,12 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       if(justSing||$('session-mic').checked){
         micController=new AbortController();
         try{await sound.microphone(micController.signal);if(token!==runId){sound.releaseMic();return;}sound.analyser.fftSize=4096;sound.analyser.smoothingTimeConstant=0;micBuffer=new Float32Array(4096);micActive=true;previousMidi=null;}
-        catch{if(token!==runId)return;if(justSing)throw new Error('Allow microphone access to use Sing and receive feedback.');$('session-status').textContent='Microphone unavailable. You can still listen and sing, without a score.';}
+        catch{if(token!==runId)return;if(justSing)throw new Error('Allow microphone access to use Recall and receive feedback.');$('session-status').textContent='Microphone unavailable. You can still listen and sing, without a score.';}
       }
       const scored=micActive,results=[];running=true;
       showLineWindow(0);
       $('session-stage').scrollIntoView({block:'center'});
-      if(justSing){$('session-status').textContent=`Count in at ${state.tempo} BPM.`;$('session-current').textContent='Get ready';$('session-count').textContent=`Line 1 of ${lines.length} · Sing`;}
+      if(justSing){$('session-status').textContent=`Count in at ${state.tempo} BPM.`;$('session-current').textContent='Get ready';$('session-count').textContent=`Line 1 of ${lines.length} · Recall`;}
       for(let lineIndex=0;lineIndex<lines.length;lineIndex++){
         const line=lines[lineIndex],attempts=[],maxAttempts=justSing?1:(scored?3:1);
         for(let attempt=1;attempt<=maxAttempts;attempt++){
@@ -310,7 +310,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
             const weak=[...new Set(result.details.filter(note=>note.score<60).map(note=>swaraLabel(notes[note.index])))];
             const retry=!justSing&&shouldRepeatLine(result.score,attempt);
             const advance=lineIndex===lines.length-1?'See your session score.':'Continue to the next line.';
-            $('session-line-feedback').innerHTML=`<strong>Line ${lineIndex+1}: ${result.score}%</strong><span>${justSing?'Sing':`Try ${attempt} of ${maxAttempts}`}</span><p>${weak.length?`Practice ${weak.join(', ')}. `:''}${retry?'Listen and sing this line again.':justSing&&result.score<60?`${advance} You can practice with Listen and Sing.`:advance}</p>`;
+            $('session-line-feedback').innerHTML=`<strong>Line ${lineIndex+1}: ${result.score}%</strong><span>${justSing?'Recall':`Try ${attempt} of ${maxAttempts}`}</span><p>${weak.length?`Practice ${weak.join(', ')}. `:''}${retry?'Listen and sing this line again.':justSing&&result.score<60?`${advance} You can practice with Learn.`:advance}</p>`;
             $('session-line-feedback').hidden=false;
             $('session-line-feedback').scrollIntoView({block:'nearest'});
             await waitUntil(sound.ctx.currentTime+1.2,token);
