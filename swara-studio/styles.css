@@ -419,6 +419,10 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 .topbar .drone-symbol{font-size:18px}
 .topbar .drone-button .switch{margin-left:2px}
 .workspace>.topbar{position:sticky;top:0;z-index:9;background:var(--paper)}
+@media(min-width:721px){
+  .sidebar{overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:thin;scrollbar-color:#b5c1ab transparent}
+  .sidebar>*{flex-shrink:0}
+}
 .tool-current-settings,.sarali-top{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;width:min(100%,590px)}
 .tool-surface-heading{width:100%}
 @media(max-width:720px){
