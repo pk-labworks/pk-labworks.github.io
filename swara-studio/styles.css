@@ -329,9 +329,15 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 .session-result-lines>div{display:flex;align-items:baseline;justify-content:space-between;gap:10px;border-bottom:1px solid #d4e2ce;padding-bottom:6px;font-size:11px}
 .session-result-lines strong{white-space:nowrap}
 .session-result-lines span{text-align:right;color:#61775e}
+.session-result-lines>.session-result-line{display:block}
+.session-result-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.session-note-reasons{list-style:none;display:grid;gap:3px;margin:8px 0 2px;padding:0}
+.session-note-reasons li{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:5px 8px;border-radius:3px;background:#f9fbf7;font-size:11px}
+.session-note-reasons li span:last-child{color:#6c624b}
 .session-guidance{font-weight:650}
 @media(max-width:700px){.session-builder{padding:17px}.session-fields{grid-template-columns:1fr 1fr}.session-fields label:last-child{grid-column:auto}.session-heading h1{font-size:34px}.session-mic-label{margin-left:0}}
 @media(max-width:580px){.saved-exercises-controls{flex-wrap:wrap}.saved-exercises-controls select{flex-basis:100%}.session-save-row{align-items:stretch;flex-direction:column}.session-save-row label{max-width:none}.session-result-lines>div{align-items:flex-start;flex-direction:column;gap:2px}.session-result-lines span{text-align:left}}
+@media(max-width:580px){.session-result-heading,.session-note-reasons li{align-items:flex-start;flex-direction:column;gap:2px}.session-result-lines>.session-result-line{display:block}}
 .practice-layout #detected-western{font-size:18px}
 .practice-layout #detected-hz{font-size:10px}
 .practice-layout #detected-cents{display:block;margin-top:10px;font-size:11px;color:#61795f}
@@ -472,3 +478,6 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 .tool-live-instruction{margin:-4px 0 14px;color:#526e4d;font-size:13px;line-height:1.5}
 @media(max-width:1050px){.start-grid{grid-template-columns:1fr}.start-purpose{grid-column:auto}}
 @media(max-width:620px){.start-card{padding:18px}.start-intro{font-size:18px}.start-selects,.start-notes{grid-template-columns:1fr}.start-note{padding:8px}.start-actions .primary-button,.start-actions .secondary-button{width:100%}}
+
+#sequential-option{margin-left:auto;font-weight:650;color:var(--green)}
+#session-view[data-preset=true] .saved-exercises,#session-view[data-preset=true] .session-notes-label,#session-view[data-preset=true] #session-notes,#session-view[data-preset=true] .session-octave-cue,#session-view[data-preset=true] .session-swatches,#session-view[data-preset=true] .session-save-row{display:none}

@@ -1,4 +1,4 @@
-import {RAGAS,phraseSwaras,midiHz,centsBetween} from './music.js?v=20261127-6';
+import {RAGAS,phraseSwaras,midiHz,centsBetween,median} from './music.js?v=20261127-6';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261127-1';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
@@ -10,6 +10,7 @@ const SAVED_KEY='swara-studio-saved-exercises-v1';
 const MAX_BEATS=128;
 const MAX_SAVED=25;
 const PASSING_LINE_SCORE=60;
+const WARMUP_TITLE='Pa–Sa–Sa warmup';
 const digit=letter=>({'₁':'1','₂':'2','₃':'3'})[letter]||letter;
 const sequenceTokens=text=>text.replace(/(lower|upper|higher)\s+sa/gi,(_,register)=>`${register}Sa`).replace(/[₁₂₃]/g,digit).split(/[\s,;|]+/).filter(Boolean);
 
@@ -44,9 +45,16 @@ export function scorePhraseLine(samples,indices,beat,base,notes,tolerance){
   const details=indices.map((index,position)=>{
     const voiced=samples.filter(sample=>sample.hz&&sample.t>=position*beat+onset&&sample.t<(position+1)*beat);
     const target=midiHz(base+notes[index].offset);
-    const accurate=voiced.filter(sample=>Math.abs(centsBetween(sample.hz,target))<=tolerance).length;
+    const deviations=voiced.map(sample=>centsBetween(sample.hz,target));
+    const accurate=deviations.filter(cents=>Math.abs(cents)<=tolerance).length;
+    const sharp=deviations.filter(cents=>cents>tolerance),flat=deviations.filter(cents=>cents< -tolerance);
     const coverage=Math.min(1,voiced.length/Math.max(2,(beat-onset)*8));
-    return {index,score:voiced.length?Math.round(100*accurate/voiced.length*coverage):0,detected:voiced.length>0};
+    const pitchIssue=sharp.length&&flat.length&&Math.min(sharp.length,flat.length)>=Math.max(1,Math.ceil(deviations.length*.25))
+      ?'Moved sharp and flat'
+      :sharp.length>flat.length?`About ${Math.round(median(sharp))} cents sharp`
+      :flat.length>sharp.length?`About ${Math.round(-median(flat))} cents flat`:'';
+    const reason=voiced.length?[pitchIssue,coverage<.75?'Not held through the beat':''].filter(Boolean).join('; ')||'In tune':'Not heard';
+    return {index,score:voiced.length?Math.round(100*accurate/voiced.length*coverage):0,detected:voiced.length>0,reason};
   });
   const average=Math.round(details.reduce((sum,note)=>sum+note.score,0)/details.length);
   const score=details.some(note=>note.score<PASSING_LINE_SCORE)?Math.min(average,PASSING_LINE_SCORE-1):average;
@@ -71,7 +79,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     const stored=JSON.parse(localStorage.getItem(SAVED_KEY)||'[]');
     if(Array.isArray(stored))savedExercises=stored.filter(item=>item&&typeof item.id==='string'&&typeof item.name==='string'&&item.name.length<=60&&SHRUTHIS.includes(item.base)&&RAGAS[item.raga]&&Number.isInteger(item.tempo)&&item.tempo>=30&&item.tempo<=300&&typeof item.notes==='string'&&item.notes.length<=8192).slice(0,MAX_SAVED);
   }catch{}
-  let state=defaults();
+  let state=defaults(),builderState=null;
   try{
     const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
     if(saved&&SHRUTHIS.includes(saved.base)&&RAGAS[saved.raga]&&Number.isInteger(saved.tempo)&&saved.tempo>=30&&saved.tempo<=300&&typeof saved.notes==='string'&&saved.notes.length<=8192){state={...defaults(),...saved,base:getSettings().base,raga:getSettings().raga};delete state.sound;}
@@ -79,13 +87,14 @@ export function createPracticeSession({sound,getSettings,onSelection}){
   if(!savedExercises.some(exercise=>exercise.id===state.savedId))state.savedId=null;
   let running=false,runId=0,frame=0,micController=null,micActive=false,micBuffer=null,lastMicFrame=0,previousMidi=null,lastVoiceAt=0;
   const $=id=>host.querySelector(`#${id}`);
-  const save=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch{}};
+  const save=()=>{if(state.source===WARMUP_TITLE)return;try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch{}};
   const setError=message=>{$('session-error').textContent=message;$('session-error').hidden=false;};
   const swaraLabel=note=>note.offset===12?'Upper Sa':note.offset===24?'Higher Sa':note.name+note.variant.slice(1);
   const code=note=>note.offset===12?"S'":note.offset===24?"S''":note.variant.replace(/[₁₂₃]/g,digit)+(note.register==='lower'?'_':note.register==='upper'?"'":'');
 
   function render(){
-    host.innerHTML=`<div class="session-heading"><p class="eyebrow">YOUR PRACTICE SESSION</p><h1>Build your own phrases.</h1><p id="session-source" class="session-source" hidden></p></div>
+    host.dataset.preset=String(state.source===WARMUP_TITLE);
+    host.innerHTML=`<div class="session-heading"><p class="eyebrow">${state.source===WARMUP_TITLE?'STEP 01 / WARMUP':'YOUR PRACTICE SESSION'}</p><h1>${state.source===WARMUP_TITLE?WARMUP_TITLE:'Build your own phrases.'}</h1><p id="session-source" class="session-source" hidden></p></div>
       <div class="session-builder"><div class="saved-exercises"><div class="saved-exercises-heading"><strong>Saved exercises</strong><span id="session-saved-count">0 / 25</span></div><div class="saved-exercises-controls"><select id="session-saved" aria-label="Choose a saved exercise"><option value="">Choose a saved exercise…</option></select><button id="session-new" class="secondary-button" type="button">New</button><button id="session-delete" class="secondary-button" type="button" disabled>Delete</button></div><p>Choose an exercise to load its notes, raga, shruthi, and tempo.</p></div><div class="session-fields">
         ${selectionFields('session',state)}
         <label>Tempo (BPM)<input id="session-tempo" type="number" min="30" max="300" step="1" inputmode="numeric"></label>
@@ -113,7 +122,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     $('session-delete').onclick=deleteSavedExercise;
     $('session-save').onclick=saveCurrentExercise;
     renderSavedExercises();renderSwatches();refreshPreview();
-    if(state.source){$('session-source').textContent=state.source;$('session-source').hidden=false;}
+    if(state.source&&state.source!==WARMUP_TITLE){$('session-source').textContent=state.source;$('session-source').hidden=false;}
   }
   function renderSavedExercises(){
     const select=$('session-saved');
@@ -256,11 +265,11 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     const score=Math.round(best.reduce((sum,line)=>sum+line.score,0)/best.length);
     const weakLines=best.map((line,index)=>({line,index})).filter(({line})=>line.score<60).map(({index})=>index+1);
     hostResults.innerHTML=`<h2>Session score: ${score}%</h2><p>${justSing?'One attempt':'Best attempt'} on each line · pitch within ±${tolerance} cents of the target.</p><div class="session-result-lines">${best.map((line,index)=>{
-      const weak=[...new Set(line.details.filter(note=>note.score<60).map(note=>swaraLabel(notes[note.index])))];
-      return `<div><strong>Line ${index+1}: ${line.score}%</strong><span>${results[index].attempts.length} ${results[index].attempts.length===1?'attempt':'attempts'}${weak.length?` · Practice ${weak.join(', ')}`:' · Well done'}</span></div>`;
+      const weak=line.details.map((note,position)=>({note,position})).filter(({note})=>note.score<60);
+      return `<div class="session-result-line"><div class="session-result-heading"><strong>Line ${index+1}: ${line.score}%</strong><span>${results[index].attempts.length} ${results[index].attempts.length===1?'attempt':'attempts'}${weak.length?` · ${weak.length} ${weak.length===1?'note needs':'notes need'} practice`:' · Well done'}</span></div>${weak.length?`<ul class="session-note-reasons">${weak.map(({note,position})=>`<li><span>Beat ${position+1} · ${swaraLabel(notes[note.index])} · ${note.score}%</span><span>${note.reason}</span></li>`).join('')}</ul>`:''}</div>`;
     }).join('')}</div><p class="session-guidance">${weakLines.length?`Practice ${weakLines.length===1?'line':'lines'} ${weakLines.join(', ')} again, focusing on the notes listed above.`:'All lines reached 60%. Keep practicing at a comfortable tempo.'}</p>${justSing&&weakLines.length?'<button id="session-guided-retry" class="primary-button" type="button">Learn</button>':''}`;
     if(justSing&&weakLines.length)$('session-guided-retry').onclick=()=>start();
-    hostResults.scrollIntoView({block:'nearest'});
+    hostResults.scrollIntoView({block:'start'});
   }
   async function start({justSing=false}={}){
     let lines;
@@ -338,8 +347,14 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     }catch(error){if(token!==runId||error.name==='AbortError')return;stop(error.message||'The session could not start.');setError(error.message||'The session could not start.');}
   }
   render();
-  function loadPattern({base,raga,notes,title}){
-    stop();state={...state,base,raga,notes,name:'',savedId:null,source:title};save();render();
+  function loadPattern({base,raga,notes,title,tempo=50}){
+    stop();if(state.source!==WARMUP_TITLE)builderState={...state};
+    state={...defaults(),base,raga,notes,tempo,source:title};render();
+  }
+  function openBuilder(){
+    if(state.source!==WARMUP_TITLE)return;
+    stop();state=builderState||defaults();builderState=null;
+    state.base=getSettings().base;state.raga=getSettings().raga;save();render();
   }
   function syncSelection({base,raga}){
     if(state.base===base&&state.raga===raga)return;
@@ -349,5 +364,5 @@ export function createPracticeSession({sound,getSettings,onSelection}){
       $('session-source').hidden=true;renderSavedExercises();renderSwatches();refreshPreview();
     }
   }
-  return {render,stop,loadPattern,start,syncSelection};
+  return {render,stop,loadPattern,openBuilder,isWarmup:()=>state.source===WARMUP_TITLE,start,syncSelection};
 }

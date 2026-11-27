@@ -2,7 +2,7 @@ import {RAGAS,midiHz} from './music.js?v=20261125-5';
 import {selectionFields} from './selection.js?v=20261122-8';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261127-1';
-import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261125-7';
+import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261127-10';
 import {countInForLine,feedbackPauseSeconds} from './tempo-guide.js?v=20261127-8';
 import {noteWindows,setPitchCircleNote} from './pitch-circle.js?v=20261125-1';
 

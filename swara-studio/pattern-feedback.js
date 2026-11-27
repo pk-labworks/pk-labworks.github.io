@@ -1,4 +1,4 @@
-import {scorePhraseLine} from './session.js?v=20261125-5';
+import {scorePhraseLine} from './session.js?v=20261127-10';
 
 const noteLabel=note=>note.offset===12?'Upper Sa':note.variant;
 
@@ -38,7 +38,7 @@ export function patternSummaryMarkup(results,notes,tolerance,{singlePass=false}=
     ?`Practice ${weakLines.length===1?'line':'lines'} ${weakLines.join(', ')} again${weakNotes.length?`, especially ${weakNotes.join(', ')}`:''}.`
     :'All lines reached 60%. Keep practicing at a comfortable tempo.';
   return `<h2>Pattern score: ${score}%</h2><p>${singlePass?'One attempt':'Best attempt'} on each line · pitch within ±${tolerance} cents.</p><div class="session-result-lines">${best.map((line,index)=>{
-    const weak=[...new Set(line.details.filter(item=>item.score<60).map(item=>noteLabel(notes[item.index])))];
-    return `<div><strong>Line ${index+1}: ${line.score}%</strong><span>${results[index].attempts.length} ${results[index].attempts.length===1?'attempt':'attempts'}${weak.length?` · Practice ${weak.join(', ')}`:' · Well done'}</span></div>`;
+    const weak=line.details.map((item,position)=>({item,position})).filter(({item})=>item.score<60);
+    return `<div class="session-result-line"><div class="session-result-heading"><strong>Line ${index+1}: ${line.score}%</strong><span>${results[index].attempts.length} ${results[index].attempts.length===1?'attempt':'attempts'}${weak.length?` · ${weak.length} ${weak.length===1?'note needs':'notes need'} practice`:' · Well done'}</span></div>${weak.length?`<ul class="session-note-reasons">${weak.map(({item,position})=>`<li><span>Beat ${position+1} · ${noteLabel(notes[item.index])} · ${item.score}%</span><span>${item.reason}</span></li>`).join('')}</ul>`:''}</div>`;
   }).join('')}</div><p class="session-guidance">${guidance}</p>`;
 }

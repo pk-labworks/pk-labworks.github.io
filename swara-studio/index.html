@@ -7,8 +7,8 @@
   <meta name="description" content="Practice Carnatic swaras, develop your ear, and see your singing in real time. A personal music practice studio.">
   <title>Swara Studio — Listen. Sing. Find your pitch.</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20261127-6">
-  <script type="module" src="app.js?v=20261127-9"></script>
+  <link rel="stylesheet" href="styles.css?v=20261127-11">
+  <script type="module" src="app.js?v=20261127-11"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to practice</a>
@@ -21,14 +21,15 @@
       <button class="nav-item" data-view="library"><span class="nav-icon">♮</span> Swara library</button>
       <button class="nav-item" data-view="tools"><span class="nav-icon">♬</span> Tools</button>
     </nav>
-    <div class="path-heading"><span class="side-label">THE LEARNING PATH</span><span class="tiny-label">01—06</span></div>
+    <div class="path-heading"><span class="side-label">THE LEARNING PATH</span><span class="tiny-label">01—07</span></div>
     <nav class="learning-path" aria-label="Training steps">
-      <button class="path-item" data-view="sarali"><span class="path-number">01</span><span>Sarali Varasai</span></button>
-      <button class="path-item" data-view="alankara"><span class="path-number">02</span><span>Alankaras</span></button>
-      <button class="path-item active" data-step="1"><span class="path-number">03</span><span>Individual swaras</span></button>
-      <button class="path-item" data-step="2"><span class="path-number">04</span><span>Two swaras</span></button>
-      <button class="path-item" data-step="3"><span class="path-number">05</span><span>Three swaras</span></button>
-      <button class="path-item" data-view="session"><span class="path-number">06</span><span>Build your own phrases</span></button>
+      <button class="path-item" data-warmup><span class="path-number">01</span><span>Pa–Sa–Sa warmup</span></button>
+      <button class="path-item" data-view="sarali"><span class="path-number">02</span><span>Sarali Varasai</span></button>
+      <button class="path-item" data-view="alankara"><span class="path-number">03</span><span>Alankaras</span></button>
+      <button class="path-item active" data-step="1"><span class="path-number">04</span><span>Individual swaras</span></button>
+      <button class="path-item" data-step="2"><span class="path-number">05</span><span>Two swaras</span></button>
+      <button class="path-item" data-step="3"><span class="path-number">06</span><span>Three swaras</span></button>
+      <button class="path-item" data-view="session"><span class="path-number">07</span><span>Build your own phrases</span></button>
     </nav>
     <div class="sidebar-bottom"><div class="small-sound" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><p>A little practice.<br>A deeper connection.</p><button id="help-open" class="text-button">A note before you begin <span>↗</span></button></div>
   </aside>
@@ -38,10 +39,10 @@
       <section id="sarali-view" class="view" hidden></section>
       <section id="alankara-view" class="view" hidden></section>
       <section id="practice-view" class="view">
-        <div class="page-heading"><div><p class="eyebrow" id="step-eyebrow">STEP 03 / THE FOUNDATIONS</p><h1 id="page-title">One swara at a time.</h1><p class="page-description" id="page-description">Listen closely. Sing freely. Let your ear lead the way.</p></div><div class="daily-goal"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="20"/><circle id="goal-ring" cx="24" cy="24" r="20"/></svg><span><strong id="today-count">0 <span>/ 8</span></strong><small>today’s practice</small></span></div></div>
+        <div class="page-heading"><div><p class="eyebrow" id="step-eyebrow">STEP 04 / THE FOUNDATIONS</p><h1 id="page-title">One swara at a time.</h1><p class="page-description" id="page-description">Listen closely. Sing freely. Let your ear lead the way.</p></div><div class="daily-goal"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="20"/><circle id="goal-ring" cx="24" cy="24" r="20"/></svg><span><strong id="today-count">0 <span>/ 8</span></strong><small>today’s practice</small></span></div></div>
         <div class="session-bar"><div id="practice-selection" class="practice-selection"></div></div>
         <div id="exercise-tabs" class="exercise-tabs" role="tablist" aria-label="Practice type"><button role="tab" aria-selected="true" data-mode="sing">Learn</button><button role="tab" aria-selected="false" data-mode="name">Sense</button><button role="tab" aria-selected="false" data-mode="memory">Recall</button></div>
-        <div id="octave-options" class="octave-options" role="group" aria-label="Additional notes"><span>Include notes</span><label><input id="include-lower" type="checkbox"> Lower Pa–Sa</label><label><input id="include-upper" type="checkbox"> Upper Ri–Pa</label></div>
+        <div id="octave-options" class="octave-options" role="group" aria-label="Practice order and additional notes"><span>Include notes</span><label><input id="include-lower" type="checkbox"> Lower Pa–Sa</label><label><input id="include-upper" type="checkbox"> Upper Ri–Pa</label><label id="sequential-option"><input id="practice-sequential" type="checkbox"> Sequential order</label></div>
         <div class="practice-layout">
           <section class="exercise-panel" id="exercise-panel" aria-labelledby="exercise-title">
             <div class="exercise-header"><span class="label" id="exercise-count">EXERCISE 01</span><span class="level-tag" id="level-tag">Beginner</span></div>
