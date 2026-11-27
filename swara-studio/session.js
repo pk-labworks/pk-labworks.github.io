@@ -2,7 +2,7 @@ import {RAGAS,phraseSwaras,midiHz,centsBetween} from './music.js?v=20261127-6';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261127-1';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
-import {countInForLine} from './tempo-guide.js?v=20261125-7';
+import {countInForLine,feedbackPauseSeconds} from './tempo-guide.js?v=20261127-8';
 import {noteWindows,setPitchCircleNote} from './pitch-circle.js?v=20261125-1';
 
 const STORAGE_KEY='swara-studio-custom-session-v1';
@@ -317,7 +317,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
             $('session-line-feedback').innerHTML=`<strong>Line ${lineIndex+1}: ${result.score}%</strong><span>${justSing?'Recall':`Try ${attempt} of ${maxAttempts}`}</span><p>${weak.length?`Practice ${weak.join(', ')}. `:''}${retry?'Listen and sing this line again.':justSing&&result.score<60?`${advance} You can practice with Learn.`:advance}</p>`;
             $('session-line-feedback').hidden=false;
             $('session-line-feedback').scrollIntoView({block:'nearest'});
-            await waitUntil(sound.ctx.currentTime+1.2,token);
+            await waitUntil(sound.ctx.currentTime+feedbackPauseSeconds(retry),token);
             if(!retry)break;
           }
         }

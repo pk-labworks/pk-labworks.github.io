@@ -3,7 +3,7 @@ import {selectionFields} from './selection.js?v=20261122-8';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261127-1';
 import {scorePatternLine,shouldRetryPatternLine,lineFeedbackMarkup,patternSummaryMarkup} from './pattern-feedback.js?v=20261125-7';
-import {countInForLine} from './tempo-guide.js?v=20261125-7';
+import {countInForLine,feedbackPauseSeconds} from './tempo-guide.js?v=20261127-8';
 import {noteWindows,setPitchCircleNote} from './pitch-circle.js?v=20261125-1';
 
 // The source lesson uses seven scale degrees. In five-note ragas, omitted
@@ -226,8 +226,9 @@ export function createSaraliVarasai({sound,getSettings,onSelection}){
             $('sarali-line-feedback').innerHTML=lineFeedbackMarkup(lineIndex,attempt,result,raga.notes,{singlePass:justSing,lastLine:lineIndex===lines.length-1});
             $('sarali-line-feedback').hidden=false;
             $('sarali-line-feedback').scrollIntoView({block:'nearest'});
-            await waitUntil(sound.ctx.currentTime+1.2,token);
-            if(justSing||!shouldRetryPatternLine(result.score,attempt))break;
+            const retry=!justSing&&shouldRetryPatternLine(result.score,attempt);
+            await waitUntil(sound.ctx.currentTime+feedbackPauseSeconds(retry),token);
+            if(!retry)break;
           }else{
             $('sarali-line-feedback').innerHTML=`<strong>Line ${lineIndex+1} complete</strong><p>Allow microphone access for a score.</p>`;
             $('sarali-line-feedback').hidden=false;

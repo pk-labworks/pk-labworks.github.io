@@ -8,3 +8,4 @@ export async function countInForLine({sound,beat,lineBeats,waitUntil,token,onBea
   await waitUntil(singStart,token);
   return singStart;
 }
+export const feedbackPauseSeconds=willRetry=>willRetry?3:1.2;
