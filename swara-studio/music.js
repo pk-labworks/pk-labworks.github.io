@@ -28,6 +28,14 @@ export function practiceSwaras(raga){
     .map(note=>({...note,name:`Upper ${note.name}`,offset:note.offset+12,register:'upper'}));
   return [...middleAndUpperSa,...lower,...upper];
 }
+export function phraseSwaras(raga){
+  const lower=raga.notes.filter(note=>note.offset<12)
+    .map(note=>({...note,name:`Lower ${note.name}`,offset:note.offset-12,register:'lower'}));
+  const middle=raga.notes.map(note=>({...note,register:note.offset===12?'upper':'middle'}));
+  const upper=raga.notes.filter(note=>note.offset>0&&note.offset<12)
+    .map(note=>({...note,name:`Upper ${note.name}`,offset:note.offset+12,register:'upper'}));
+  return [...lower,...middle,...upper,{...raga.notes[0],name:'Higher Sa',offset:24,register:'upper'}];
+}
 export const PITCH_POSITION_LABELS=['Sa','R₁','R₂/G₁','R₃/G₂','G₃','M₁','M₂','Pa','D₁','D₂/N₁','D₃/N₂','N₃'];
 export const midiHz = midi => 440 * 2 ** ((midi-69)/12);
 const REFERENCE_HARMONICS=[1,.31,.14,.06];

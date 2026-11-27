@@ -1,4 +1,4 @@
-import {RAGAS,practiceSwaras,midiHz,centsBetween} from './music.js?v=20261125-5';
+import {RAGAS,phraseSwaras,midiHz,centsBetween} from './music.js?v=20261127-6';
 import {detectLivePitch} from './swara-live-core.js?v=20261121-1';
 import {liveReadoutMarkup,clearLiveReadout,showLiveReadout} from './live-readout.js?v=20261127-1';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
@@ -11,10 +11,10 @@ const MAX_BEATS=128;
 const MAX_SAVED=25;
 const PASSING_LINE_SCORE=60;
 const digit=letter=>({'₁':'1','₂':'2','₃':'3'})[letter]||letter;
-const sequenceTokens=text=>text.replace(/upper\s+sa/gi,'UpperSa').replace(/[₁₂₃]/g,digit).split(/[\s,;|]+/).filter(Boolean);
+const sequenceTokens=text=>text.replace(/(lower|upper|higher)\s+sa/gi,(_,register)=>`${register}Sa`).replace(/[₁₂₃]/g,digit).split(/[\s,;|]+/).filter(Boolean);
 
 export function parseSwaraSequence(text,raga){
-  const notes=practiceSwaras(raga);
+  const notes=phraseSwaras(raga);
   const tokens=sequenceTokens(text);
   if(!tokens.length)throw new Error('Enter at least one swara.');
   if(tokens.length>MAX_BEATS)throw new Error(`Use ${MAX_BEATS} swaras or fewer in one session.`);
@@ -24,8 +24,10 @@ export function parseSwaraSequence(text,raga){
       return null;
     }
     const token=raw.toUpperCase().replace(/[’‘]/g,"'");
+    if(/^(HIGHERSA|S''|SA'')$/.test(token))return notes.findIndex(note=>note.offset===24);
+    if(/^(LOWERSA|S_|SA_)$/.test(token))return notes.findIndex(note=>note.offset===-12);
     if(/^(UPPERSA|S['^+.]|SA['^+.])$/.test(token))return notes.findIndex(note=>note.offset===12);
-    if(token==='S'||token==='SA')return 0;
+    if(token==='S'||token==='SA')return notes.findIndex(note=>note.offset===0);
     const match=token.match(/^(R|RI|G|GA|M|MA|P|PA|D|DA|N|NI)([123])?([_'])?$/);
     if(!match)throw new Error(`“${raw}” at position ${position+1} is not a swara. Use the swaras shown below.`);
     const letter=match[1][0],variant=match[2],register=match[3]==='_'?'lower':match[3]==="'"?'upper':'middle';
@@ -79,8 +81,8 @@ export function createPracticeSession({sound,getSettings,onSelection}){
   const $=id=>host.querySelector(`#${id}`);
   const save=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch{}};
   const setError=message=>{$('session-error').textContent=message;$('session-error').hidden=false;};
-  const swaraLabel=note=>note.offset===12?'Upper Sa':note.name+note.variant.slice(1);
-  const code=note=>note.offset===12?"S'":note.variant.replace(/[₁₂₃]/g,digit)+(note.register==='lower'?'_':note.register==='upper'?"'":'');
+  const swaraLabel=note=>note.offset===12?'Upper Sa':note.offset===24?'Higher Sa':note.name+note.variant.slice(1);
+  const code=note=>note.offset===12?"S'":note.offset===24?"S''":note.variant.replace(/[₁₂₃]/g,digit)+(note.register==='lower'?'_':note.register==='upper'?"'":'');
 
   function render(){
     host.innerHTML=`<div class="session-heading"><p class="eyebrow">YOUR PRACTICE SESSION</p><h1>Build your own phrases.</h1><p id="session-source" class="session-source" hidden></p></div>
@@ -89,13 +91,13 @@ export function createPracticeSession({sound,getSettings,onSelection}){
         <label>Tempo (BPM)<input id="session-tempo" type="number" min="30" max="300" step="1" inputmode="numeric"></label>
       </div><label class="session-notes-label" for="session-notes">Swaras</label>
       <textarea id="session-notes" rows="3" spellcheck="false" placeholder="P_ D2_ S R2 G3 P&#10;S' R2' G3' P' G3' R2'"></textarea>
+      <p class="session-octave-cue">Lower: _ · Higher: ' · Next Sa: ''</p>
       <div id="session-swatches" class="session-swatches" aria-label="Add a swara"></div>
-      <p class="field-note">Put each line on a new row. One beat per swara or hold (~). Use _ for lower notes (P_) and ' for upper notes (S', R2').</p>
       <div class="session-save-row"><label for="session-name">Exercise name<input id="session-name" type="text" maxlength="60" placeholder="e.g., Mohanam ascent"></label><button id="session-save" class="secondary-button" type="button">Save exercise</button></div>
       <p id="session-error" class="session-error" role="alert" hidden></p>
       <div class="session-actions"><button id="session-play" class="primary-button" type="button">Learn <span aria-hidden="true">→</span></button><button id="session-just-sing" class="secondary-button" type="button">Recall</button><button id="session-stop" class="secondary-button" type="button" disabled>Stop</button><label class="session-mic-label"><input id="session-mic" type="checkbox" checked> Show my sung note</label></div>
       <p id="session-status" class="session-status" role="status">Learn plays each line first. Recall gives a four-beat count-in at the start, then beat clicks at the set tempo without swara playback.</p>
-      <div id="session-stage" class="session-stage"><div class="session-stage-top"><span class="label">CURRENT SWARA</span><span id="session-count">—</span></div><strong id="session-current">—</strong><div id="session-sequence" class="session-sequence"></div><div id="session-line-feedback" class="pattern-line-feedback" role="status" aria-live="polite" hidden></div><div class="session-progress"><i id="session-progress-fill"></i></div>${liveReadoutMarkup('session')}</div><div id="session-results" class="session-results" hidden></div></div>`;
+      <div id="session-stage" class="session-stage"><div class="session-stage-top"><span class="label">CURRENT SWARA</span><span id="session-count">—</span></div><strong id="session-current">—</strong>${liveReadoutMarkup('session')}<div id="session-line-feedback" class="pattern-line-feedback" role="status" aria-live="polite" hidden></div><div id="session-sequence" class="session-sequence"></div><div class="session-progress"><i id="session-progress-fill"></i></div></div><div id="session-results" class="session-results" hidden></div></div>`;
     $('session-base').value=String(state.base);$('session-raga').value=state.raga;$('session-tempo').value=String(state.tempo);$('session-notes').value=state.notes;$('session-name').value=state.name||'';
     $('session-base').onchange=()=>{state.base=Number($('session-base').value);save();refreshPreview();onSelection?.({base:state.base,raga:state.raga});};
     $('session-raga').onchange=()=>{state.raga=$('session-raga').value;save();renderSwatches();refreshPreview();onSelection?.({base:state.base,raga:state.raga});};
@@ -157,8 +159,8 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     }catch{setError('The exercise could not be deleted from this device.');}
   }
   function renderSwatches(){
-    const notes=practiceSwaras(RAGAS[state.raga]);
-    $('session-swatches').innerHTML=['lower','middle','upper'].map(register=>`<div class="session-swatch-group"><span>${register==='middle'?'Middle octave':register==='lower'?'Lower Pa–Sa':'Upper Sa–Pa'}</span>${notes.filter(note=>note.register===register).map(note=>`<button type="button" data-code="${code(note)}" aria-label="Add ${swaraLabel(note)}">${code(note)}</button>`).join('')}</div>`).join('');
+    const notes=phraseSwaras(RAGAS[state.raga]);
+    $('session-swatches').innerHTML=notes.map(note=>`<button type="button" data-code="${code(note)}" aria-label="Add ${swaraLabel(note)}">${code(note)}</button>`).join('');
   }
   function readLines(){
     if(!Number.isInteger(state.tempo)||state.tempo<30||state.tempo>300)throw new Error('Choose a tempo from 30 to 300 BPM.');
@@ -171,7 +173,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
   function refreshPreview(){
     if(!running){$('session-current').textContent='—';$('session-progress-fill').style.width='0';clearLiveReadout(host,'session');previousMidi=null;$('session-status').textContent='Learn plays each line first. Recall gives a four-beat count-in at the start, then beat clicks at the set tempo without swara playback.';$('session-line-feedback').hidden=true;$('session-results').hidden=true;}
     try{
-      const lines=readLines(),notes=practiceSwaras(RAGAS[state.raga]);
+      const lines=readLines(),notes=phraseSwaras(RAGAS[state.raga]);
       $('session-error').hidden=true;
       $('session-sequence').innerHTML=lines.map((line,lineIndex)=>`<div class="session-score-line" data-score-line="${lineIndex}"><b>Line ${lineIndex+1}</b>${line.indices.map((i,n)=>`<span data-line="${lineIndex}" data-beat="${n}">${line.tokens[n]==='~'?'Hold '+swaraLabel(notes[i]):swaraLabel(notes[i])}</span>`).join('')}</div>`).join('');
       const beats=lines.reduce((sum,line)=>sum+line.indices.length,0);
@@ -190,7 +192,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     });
   }
   function stop(message=''){
-    runId++;running=false;cancelAnimationFrame(frame);frame=0;micController?.abort();micController=null;
+    runId++;running=false;host.classList.remove('session-practicing');cancelAnimationFrame(frame);frame=0;micController?.abort();micController=null;
     if(micActive){sound.releaseMic();micActive=false;micBuffer=null;}
     sound.stopNotes();
     host.querySelectorAll('.session-score-line').forEach(row=>{row.hidden=false;row.classList.remove('active-line');});
@@ -268,7 +270,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     $('session-play').disabled=true;$('session-just-sing').disabled=true;$('session-stop').disabled=false;
     for(const id of ['session-base','session-raga','session-tempo','session-notes','session-name','session-mic','session-saved','session-new','session-save','session-delete'])$(id).disabled=true;
     $('session-status').textContent='Preparing your phrase…';
-    const notes=practiceSwaras(RAGAS[state.raga]),beat=60/state.tempo,tolerance=({beginner:35,intermediate:25,advanced:15})[getSettings().level]||35;
+    const notes=phraseSwaras(RAGAS[state.raga]),beat=60/state.tempo,tolerance=({beginner:35,intermediate:25,advanced:15})[getSettings().level]||35;
     try{
       await sound.unlock();if(token!==runId)return;
       if(justSing||$('session-mic').checked){
@@ -276,7 +278,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
         try{await sound.microphone(micController.signal);if(token!==runId){sound.releaseMic();return;}sound.analyser.fftSize=4096;sound.analyser.smoothingTimeConstant=0;micBuffer=new Float32Array(4096);micActive=true;previousMidi=null;}
         catch{if(token!==runId)return;if(justSing)throw new Error('Allow microphone access to use Recall and receive feedback.');$('session-status').textContent='Microphone unavailable. You can still listen and sing, without a score.';}
       }
-      const scored=micActive,results=[];running=true;
+      const scored=micActive,results=[];running=true;host.classList.add('session-practicing');
       showLineWindow(0);
       $('session-stage').scrollIntoView({block:'center'});
       if(justSing){$('session-status').textContent=`Count in at ${state.tempo} BPM.`;$('session-current').textContent='Get ready';$('session-count').textContent=`Line 1 of ${lines.length} · Recall`;}

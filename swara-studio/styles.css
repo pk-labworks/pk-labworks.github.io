@@ -287,9 +287,8 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 .session-fields label,.session-notes-label{display:grid;gap:6px;color:var(--ink);font-size:12px;font-weight:650}
 .session-fields select,.session-fields input,.session-builder textarea{width:100%;border:1px solid #cfd7c9;border-radius:4px;background:#fff;color:var(--ink);padding:9px 11px;min-height:39px}
 .session-builder textarea{display:block;resize:vertical;min-height:72px;font:15px/1.5 var(--mono)}
+.session-octave-cue{margin-top:8px;color:#61745e;font:11px var(--mono);white-space:nowrap;overflow-x:auto}
 .session-swatches{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
-.session-swatch-group{display:flex;align-items:center;flex-wrap:wrap;gap:6px;width:100%}
-.session-swatch-group>span{min-width:108px;color:#6a7a66;font-size:10px;font-weight:650}
 .session-swatches button{min-width:37px;padding:6px 9px;border:1px solid #b5c8ad;border-radius:4px;background:#eaf1e6;color:var(--green);font:12px var(--mono)}
 .session-swatches button:hover{background:#dce9d6}
 .session-builder .field-note{margin-top:8px}
@@ -312,6 +311,16 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 .session-progress{height:4px;background:#d6e0d1;border-radius:4px;margin:9px 0}
 .session-progress i{display:block;height:100%;width:0;background:#679266;border-radius:4px}
 .session-stage>p{font-size:12px;color:#476a48}
+#session-view.session-practicing .session-heading,
+#session-view.session-practicing .saved-exercises,
+#session-view.session-practicing .session-fields,
+#session-view.session-practicing .session-notes-label,
+#session-view.session-practicing #session-notes,
+#session-view.session-practicing .session-octave-cue,
+#session-view.session-practicing .session-swatches,
+#session-view.session-practicing .session-save-row{display:none}
+#session-view.session-practicing .session-builder{padding:14px 16px}
+#session-view.session-practicing .session-actions{margin-top:0}
 .session-results{margin-top:16px;padding:16px 18px;border:1px solid #c8d9c2;border-radius:5px;background:#eff5eb;color:#355e3b}
 .session-results h2{font:25px/1.2 var(--serif);margin-bottom:5px}
 .session-results>p{font-size:11px;line-height:1.5}
