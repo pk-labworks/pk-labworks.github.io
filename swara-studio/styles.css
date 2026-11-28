@@ -490,3 +490,18 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 
 .practice-layout{grid-template-columns:minmax(0,1fr);max-width:760px;margin-inline:auto}
 .exercise-panel.show-answer .note-stage{display:none}
+
+.tool-tabs button[data-tool=find]{--tab-ink:#765335;--tab-bg:#f1e9dc;--tab-border:#dccab4}
+.tool-find{max-width:760px}
+.tool-find h2{font:30px/1.15 var(--serif);margin:0 0 6px}
+.tool-find>p:not(.tool-caption){color:#6f7968;font-size:13px}
+.tool-find-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:20px 0 12px}
+.tool-find-actions .primary-button{min-width:120px}
+#tool-find-status{font-size:12px;color:#61775c}
+.tool-find-progress{height:7px;border-radius:7px;background:#e6eadf;overflow:hidden;max-width:480px}
+.tool-find-progress i{display:block;height:100%;width:0;background:#6c9a69;transition:width .08s linear}
+.tool-find-result{display:grid;justify-items:start;gap:7px;margin-top:18px;padding:18px;border:1px solid #ceddc6;border-radius:5px;background:#edf4e8}
+.tool-find-result strong{font:42px/1 var(--serif);color:var(--green)}
+.tool-find-result p{font-size:12px;color:#5d735b}
+.tool-find-result .primary-button{margin-top:6px}
+.tool-find .tool-caption{margin-top:17px}
