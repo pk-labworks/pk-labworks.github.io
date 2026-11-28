@@ -481,6 +481,11 @@ dialog{max-height:calc(100vh - 32px);overflow-y:auto}
 
 #sequential-option{margin-right:12px;font-weight:650;color:var(--green)}
 #session-view[data-preset=true] .saved-exercises,#session-view[data-preset=true] .session-notes-label,#session-view[data-preset=true] #session-notes,#session-view[data-preset=true] .session-octave-cue,#session-view[data-preset=true] .session-swatches,#session-view[data-preset=true] .session-save-row{display:none}
+.warmup-patterns{display:grid;gap:6px;margin-bottom:15px}
+.warmup-patterns button{display:flex;align-items:baseline;gap:12px;width:100%;padding:9px 12px;text-align:left;border:1px solid #d1dccb;border-radius:4px;background:#f8faf5;color:var(--ink);font-size:12px;line-height:1.4}
+.warmup-patterns button span{flex:none;color:#6f806d;font:10px var(--mono)}
+.warmup-patterns button[aria-pressed=true]{background:#e8f1e3;border-color:#779b72;color:var(--green);font-weight:650}
+#session-view.session-practicing .warmup-patterns{display:none}
 
 .feedback-playback{display:flex;flex-wrap:wrap;gap:8px;margin:13px 0 5px}
 .feedback-playback .secondary-button{height:36px;min-width:155px;padding:0 12px;font-size:11px}

@@ -12,6 +12,11 @@ const MAX_BEATS=128;
 const MAX_SAVED=25;
 const PASSING_LINE_SCORE=60;
 const WARMUP_TITLE='Pa–Sa–Sa warmup';
+const WARMUP_PATTERNS=[
+  {label:'Lower Pa · Sa · Sa',notes:'P_ S S'},
+  {label:'Lower Pa · Sa · Pa · Upper Sa · Pa · Sa · Lower Pa · Sa',notes:"P_ S P S' P S P_ S"},
+  {label:'Lower Pa · Sa · Pa · Upper Sa · Upper Pa · Upper Sa · Pa · Sa · Lower Pa · Sa',notes:"P_ S P S' P' S' P S P_ S"}
+];
 const digit=letter=>({'₁':'1','₂':'2','₃':'3'})[letter]||letter;
 const sequenceTokens=text=>text.replace(/(lower|upper|higher)\s+sa/gi,(_,register)=>`${register}Sa`).replace(/[₁₂₃]/g,digit).split(/[\s,;|]+/).filter(Boolean);
 
@@ -96,7 +101,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
   function render(){
     host.dataset.preset=String(state.source===WARMUP_TITLE);
     host.innerHTML=`<div class="session-heading"><p class="eyebrow">${state.source===WARMUP_TITLE?'STEP 01 / WARMUP':'YOUR PRACTICE SESSION'}</p><h1>${state.source===WARMUP_TITLE?WARMUP_TITLE:'Build your own phrases.'}</h1><p id="session-source" class="session-source" hidden></p></div>
-      <div class="session-builder"><div class="saved-exercises"><div class="saved-exercises-heading"><strong>Saved exercises</strong><span id="session-saved-count">0 / 25</span></div><div class="saved-exercises-controls"><select id="session-saved" aria-label="Choose a saved exercise"><option value="">Choose a saved exercise…</option></select><button id="session-new" class="secondary-button" type="button">New</button><button id="session-delete" class="secondary-button" type="button" disabled>Delete</button></div><p>Choose an exercise to load its notes, raga, shruthi, and tempo.</p></div><div class="session-fields">
+      <div class="session-builder">${state.source===WARMUP_TITLE?`<div class="warmup-patterns" role="group" aria-label="Warmup pattern">${WARMUP_PATTERNS.map((pattern,index)=>`<button type="button" data-warmup-pattern="${index}" aria-pressed="${state.notes===pattern.notes}"><span>${String(index+1).padStart(2,'0')}</span>${pattern.label}</button>`).join('')}</div>`:''}<div class="saved-exercises"><div class="saved-exercises-heading"><strong>Saved exercises</strong><span id="session-saved-count">0 / 25</span></div><div class="saved-exercises-controls"><select id="session-saved" aria-label="Choose a saved exercise"><option value="">Choose a saved exercise…</option></select><button id="session-new" class="secondary-button" type="button">New</button><button id="session-delete" class="secondary-button" type="button" disabled>Delete</button></div><p>Choose an exercise to load its notes, raga, shruthi, and tempo.</p></div><div class="session-fields">
         ${selectionFields('session',state)}
         <label>Tempo (BPM)<input id="session-tempo" type="number" min="30" max="300" step="1" inputmode="numeric"></label>
       </div><label class="session-notes-label" for="session-notes">Swaras</label>
@@ -122,6 +127,11 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     $('session-new').onclick=newExercise;
     $('session-delete').onclick=deleteSavedExercise;
     $('session-save').onclick=saveCurrentExercise;
+    host.querySelectorAll('[data-warmup-pattern]').forEach(button=>button.onclick=()=>{
+      const pattern=WARMUP_PATTERNS[Number(button.dataset.warmupPattern)];
+      if(!pattern||state.notes===pattern.notes)return;
+      stop();state.notes=pattern.notes;render();
+    });
     renderSavedExercises();renderSwatches();refreshPreview();
     if(state.source&&state.source!==WARMUP_TITLE){$('session-source').textContent=state.source;$('session-source').hidden=false;}
   }
@@ -365,9 +375,9 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     }catch(error){if(token!==runId||error.name==='AbortError')return;stop(error.message||'The session could not start.');$('session-stage').hidden=true;setError(error.message||'The session could not start.');}
   }
   render();
-  function loadPattern({base,raga,notes,title,tempo=50}){
+  function loadWarmup({base,raga}){
     stop();if(state.source!==WARMUP_TITLE)builderState={...state};
-    state={...defaults(),base,raga,notes,tempo,source:title};render();
+    state={...defaults(),base,raga,notes:WARMUP_PATTERNS[0].notes,tempo:30,source:WARMUP_TITLE};render();
   }
   function openBuilder(){
     if(state.source!==WARMUP_TITLE)return;
@@ -376,11 +386,12 @@ export function createPracticeSession({sound,getSettings,onSelection}){
   }
   function syncSelection({base,raga}){
     if(state.base===base&&state.raga===raga)return;
-    state.base=base;state.raga=raga;state.savedId=null;state.source='';save();
+    state.base=base;state.raga=raga;state.savedId=null;
+    if(state.source!==WARMUP_TITLE){state.source='';save();}
     if($('session-base')){
       $('session-base').value=String(base);$('session-raga').value=raga;
       $('session-source').hidden=true;renderSavedExercises();renderSwatches();refreshPreview();
     }
   }
-  return {render,stop,loadPattern,openBuilder,isWarmup:()=>state.source===WARMUP_TITLE,start,syncSelection};
+  return {render,stop,loadWarmup,openBuilder,isWarmup:()=>state.source===WARMUP_TITLE,start,syncSelection};
 }

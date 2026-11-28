@@ -1,7 +1,7 @@
 import {RAGA_LIST,RAGAS,DEFAULT_RAGA,practiceSwaras,swaraHz as swaraHzFor,centsBetween,noteName,scorePitch as scorePitchFor,SoundEngine} from './music.js?v=20261127-6';
 import {detectLivePitch,livePitchReading} from './swara-live-core.js?v=20261121-1';
 import {createTools} from './tools.js?v=20261128-1';
-import {createPracticeSession} from './session.js?v=20261128-2';
+import {createPracticeSession} from './session.js?v=20261128-3';
 import {createSaraliVarasai} from './sarali.js?v=20261127-12';
 import {createAlankaras} from './alankara.js?v=20261127-12';
 import {selectionFields,SHRUTHIS} from './selection.js?v=20261122-8';
@@ -382,7 +382,7 @@ $('begin').onclick=()=>{if(phase==='result')attempt++;begin();};$('preview-note'
 // Tabs follow standard keyboard behavior as well as pointer interaction.
 const tabs=[...document.querySelectorAll('[data-mode]')];tabs.forEach((b,i)=>{b.onclick=()=>{if(mode===b.dataset.mode)return;cancelExercise();mode=b.dataset.mode;attempt=1;samples=[];syncPath();renderExercise(false);if(mode==='sing')begin();};b.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const index=e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[index].focus();tabs[index].click();}};});
 document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{cancelExercise();step=Number(b.dataset.step);mode='sing';attempt=1;sequenceCursor=0;samples=[];syncPath();renderExercise();showView('practice');begin();});
-document.querySelector('[data-warmup]').onclick=()=>{session.loadPattern({base:settings.base,raga:settings.raga,notes:'P_ S S',tempo:30,title:'Pa–Sa–Sa warmup'});showView('session');};
+document.querySelector('[data-warmup]').onclick=()=>{session.loadWarmup({base:settings.base,raga:settings.raga});showView('session');};
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{if(b.dataset.view==='session')session.openBuilder();showView(b.dataset.view);});
 document.querySelector('.brand').onclick=e=>{e.preventDefault();showView('practice');};
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(busy())cancelExercise();stopComparison();tools?.stop();session?.stop();sarali?.stop();alankara?.stop();}});
