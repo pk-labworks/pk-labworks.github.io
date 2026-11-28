@@ -181,7 +181,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     return lines;
   }
   function refreshPreview(){
-    if(!running){$('session-current').textContent='—';$('session-progress-fill').style.width='0';clearLiveReadout(host,'session');previousMidi=null;$('session-status').textContent='Learn: hear, then sing each line. Recall: Ready, Go, then sing through. Clicks mark the tempo.';$('session-line-feedback').hidden=true;$('session-results').hidden=true;}
+    if(!running){$('session-stage').hidden=false;$('session-current').textContent='—';$('session-progress-fill').style.width='0';clearLiveReadout(host,'session');previousMidi=null;$('session-status').textContent='Learn: hear, then sing each line. Recall: Ready, Go, then sing through. Clicks mark the tempo.';$('session-line-feedback').hidden=true;$('session-results').hidden=true;}
     try{
       const lines=readLines(),notes=phraseSwaras(RAGAS[state.raga]);
       $('session-error').hidden=true;
@@ -214,8 +214,10 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     if(message&&$('session-status'))$('session-status').textContent=message;
   }
   async function waitUntil(time,token){
+    const deadline=performance.now()+Math.max(0,time-sound.ctx.currentTime)*1000+3000;
     while(sound.ctx.currentTime<time){
       if(token!==runId)throw new DOMException('Stopped','AbortError');
+      if(performance.now()>deadline)throw new Error('Audio playback paused. Start the session again.');
       await new Promise(resolve=>setTimeout(resolve,16));
     }
     if(token!==runId)throw new DOMException('Stopped','AbortError');
@@ -280,11 +282,16 @@ export function createPracticeSession({sound,getSettings,onSelection}){
     if(justSing&&weakLines.length)$('session-guided-retry').onclick=()=>start();
     hostResults.scrollIntoView({block:'start'});
   }
+  function completeSession(results,notes,scored,tolerance,options){
+    stop('Session complete.');
+    $('session-stage').hidden=true;
+    showResults(results,notes,scored,tolerance,options);
+  }
   async function start({justSing=false}={}){
     let lines;
     try{lines=readLines();}catch(error){setError(error.message);return;}
     stop();const token=++runId;
-    $('session-error').hidden=true;$('session-results').hidden=true;$('session-results').innerHTML='';$('session-line-feedback').hidden=true;
+    $('session-error').hidden=true;$('session-stage').hidden=false;$('session-results').hidden=true;$('session-results').innerHTML='';$('session-line-feedback').hidden=true;
     $('session-play').disabled=true;$('session-just-sing').disabled=true;$('session-stop').disabled=false;
     for(const id of ['session-base','session-raga','session-tempo','session-notes','session-name','session-mic','session-saved','session-new','session-save','session-delete'])$(id).disabled=true;
     $('session-status').textContent='Preparing your phrase…';
@@ -320,7 +327,7 @@ export function createPracticeSession({sound,getSettings,onSelection}){
         }
         host.querySelector('.line-live-readout').hidden=true;
         const recording=await sound.finishRecording();
-        stop('Session complete.');showLineWindow(lines.length-1);showResults(results,notes,scored,tolerance,{justSing:true,recording,lines,beat});
+        completeSession(results,notes,scored,tolerance,{justSing:true,recording,lines,beat});
         return;
       }
       for(let lineIndex=0;lineIndex<lines.length;lineIndex++){
@@ -354,8 +361,8 @@ export function createPracticeSession({sound,getSettings,onSelection}){
         }
         results.push({attempts});
       }
-      stop('Session complete.');showLineWindow(lines.length-1);showResults(results,notes,scored,tolerance);
-    }catch(error){if(token!==runId||error.name==='AbortError')return;stop(error.message||'The session could not start.');setError(error.message||'The session could not start.');}
+      completeSession(results,notes,scored,tolerance);
+    }catch(error){if(token!==runId||error.name==='AbortError')return;stop(error.message||'The session could not start.');$('session-stage').hidden=true;setError(error.message||'The session could not start.');}
   }
   render();
   function loadPattern({base,raga,notes,title,tempo=50}){
